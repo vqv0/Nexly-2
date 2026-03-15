@@ -1,11 +1,15 @@
+# Nexly
 
-  # Login and Registration Flow
+Plataforma de red social moderna y fluida.
 
-  This is a code bundle for Login and Registration Flow. The original project is available at https://www.figma.com/design/24t7YSEOJieWHkzZ28EMQe/Login-and-Registration-Flow.
+## Características
+- Admin Dashboard con gestión de usuarios.
+- Sistema de mensajería privada.
+- Centro de moderación y reportes.
+- Modo de rendimiento optimizado para hardware de gama baja.
 
-  ## Running the code
-
-  Run `npm i` to install the dependencies.
-
-  Run `npm run dev` to start the development server.
-  
+## Despliegue
+Para publicar esta página, se recomienda usar **Vercel** o **Netlify**.
+1. Sube el código a un repositorio de GitHub.
+2. Conecta el repositorio a Vercel/Netlify.
+3. El comando de build es `npm run build` y el directorio de salida es `dist`.
