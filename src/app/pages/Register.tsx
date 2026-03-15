@@ -18,7 +18,7 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (password !== confirmPassword) {
@@ -33,7 +33,7 @@ export default function Register() {
 
     setLoading(true);
 
-    const result = auth.register(email, password, name, location || undefined);
+    const result = await auth.register(email, password, name, location || undefined);
     
     if (result.success) {
       toast.success('¡Bienvenido a Nexly!');

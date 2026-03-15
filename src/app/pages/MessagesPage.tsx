@@ -8,7 +8,8 @@ import { ScrollArea } from '../components/ui/scroll-area';
 import { Search, Send, ArrowLeft, MessageSquare, Circle, MoreVertical } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth } from '../utils/auth';
-import { getUserProfile, UserProfile } from '../utils/mockData';
+import { db } from '../utils/firebase';
+import { ref, onValue, push, set, get } from 'firebase/database';
 
 interface Contact {
   id: string;
@@ -26,129 +27,108 @@ interface Message {
   text: string;
   sender: 'me' | 'other';
   time: string;
+  timestamp: number;
 }
-
-const CONTACTS: Contact[] = [
-  {
-    id: 'maria@nexly.com',
-    name: 'María García',
-    lastMessage: 'Hola! ¿Cómo estás?',
-    time: 'Hace 5 min',
-    unread: 2,
-    online: true,
-    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400',
-  },
-  {
-    id: 'carlos@nexly.com',
-    name: 'Carlos Rodríguez',
-    lastMessage: 'Nos vemos mañana',
-    time: 'Hace 1 hora',
-    unread: 0,
-    online: true,
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400',
-  },
-  {
-    id: 'ana@nexly.com',
-    name: 'Ana López',
-    lastMessage: 'Gracias por compartir!',
-    time: 'Hace 2 horas',
-    unread: 0,
-    online: false,
-  },
-  {
-    id: 'diego@nexly.com',
-    name: 'Diego Martínez',
-    lastMessage: 'Perfecto, confirmo',
-    time: 'Ayer',
-    unread: 1,
-    online: false,
-  },
-];
 
 export default function MessagesPage() {
   const { userId } = useParams();
   const navigate = useNavigate();
   const currentUser = auth.getCurrentUser();
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [messageText, setMessageText] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const loadMessages = (contactId: string) => {
-    const allMessages: Message[] = JSON.parse(localStorage.getItem('nexly_messages') || '[]');
-    const filtered = allMessages.filter(m => 
-      (m.senderId === currentUser?.id && m.id.startsWith(contactId)) || // This is a bit hacky, let's improve
-      (m.senderId === contactId && m.id.endsWith(currentUser?.id || ''))
-    );
+  // Load registered users to show as contacts
+  useEffect(() => {
+    if (!currentUser) return;
     
-    // For now, let's keep it simple with a unique conversation key
-    const conversationKey = [currentUser?.id, contactId].sort().join('_');
-    const conversationMessages = allMessages.filter(m => m.id.includes(conversationKey));
+    const usersRef = ref(db, 'users');
+    const unsubscribe = onValue(usersRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const loadedContacts: Contact[] = [];
+        Object.keys(data).forEach(key => {
+          if (key !== currentUser.id) {
+            const u = data[key];
+            loadedContacts.push({
+              id: key,
+              name: u.name,
+              lastMessage: 'Toca para chatear',
+              time: '',
+              unread: 0,
+              online: true,
+              avatar: u.avatar || '',
+            });
+          }
+        });
+        setContacts(loadedContacts);
+        
+        if (userId && !selectedContact) {
+          const contact = loadedContacts.find(c => c.id === userId);
+          if (contact) setSelectedContact(contact);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, [currentUser, userId]);
+
+  // Load and listen to messages for the selected contact
+  useEffect(() => {
+    if (!selectedContact || !currentUser) return;
+
+    const conversationKey = [currentUser.id, selectedContact.id].sort().join('_');
+    const messagesRef = ref(db, `chats/${conversationKey}/messages`);
     
-    if (conversationMessages.length > 0) {
-      setMessages(conversationMessages);
-    } else {
-      // Mock initial messages if none found
-      setMessages([
-        { id: `${conversationKey}_1`, senderId: contactId, text: `¡Hola! Soy ${CONTACTS.find(c => c.id === contactId)?.name || 'tu contacto'}.`, sender: 'other', time: '10:30' },
-        { id: `${conversationKey}_2`, senderId: currentUser?.id || 'me', text: 'Hola! ¿Cómo estás?', sender: 'me', time: '10:32' },
-      ]);
-    }
-  };
+    const unsubscribe = onValue(messagesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const loadedMessages: Message[] = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key],
+          sender: data[key].senderId === currentUser.id ? 'me' : 'other'
+        }));
+        loadedMessages.sort((a, b) => a.timestamp - b.timestamp);
+        setMessages(loadedMessages);
+      } else {
+        setMessages([]);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [selectedContact, currentUser]);
 
   const handleContactClick = (contact: Contact) => {
     setSelectedContact(contact);
-    loadMessages(contact.id);
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!messageText.trim() || !selectedContact || !currentUser) return;
     
     const conversationKey = [currentUser.id, selectedContact.id].sort().join('_');
-    const newMessage: Message = {
-      id: `${conversationKey}_${Date.now()}`,
+    const messagesRef = ref(db, `chats/${conversationKey}/messages`);
+    const newMessageRef = push(messagesRef);
+    
+    await set(newMessageRef, {
       senderId: currentUser.id,
       text: messageText,
-      sender: 'me',
       time: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-    };
+      timestamp: Date.now()
+    });
     
-    const allMessages: Message[] = JSON.parse(localStorage.getItem('nexly_messages') || '[]');
-    const updatedMessages = [...allMessages, newMessage];
-    localStorage.setItem('nexly_messages', JSON.stringify(updatedMessages));
-    
-    setMessages(prev => [...prev, newMessage]);
     setMessageText('');
-    window.dispatchEvent(new CustomEvent('nexly-messages-update'));
   };
 
-  const filteredContacts = CONTACTS.filter(c => 
+  const filteredContacts = contacts.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   useEffect(() => {
     if (!currentUser) {
       navigate('/');
-      return;
     }
-
-    if (userId) {
-      const contact = CONTACTS.find(c => c.id === userId) || (getUserProfile(userId) ? {
-        id: userId,
-        name: getUserProfile(userId)!.name,
-        lastMessage: 'Inicia una conversación',
-        time: 'Recién',
-        unread: 0,
-        online: true,
-        avatar: getUserProfile(userId)!.avatar
-      } : null);
-      
-      if (contact) {
-        setSelectedContact(contact);
-        loadMessages(contact.id);
-      }
-    }
-  }, [userId, currentUser?.id]);
+  }, [currentUser, navigate]);
 
   return (
     <div className="min-h-screen bg-[#050505] text-white">
@@ -226,6 +206,9 @@ export default function MessagesPage() {
                       </div>
                     </motion.div>
                   ))}
+                  {filteredContacts.length === 0 && (
+                    <div className="p-4 text-center text-gray-500 text-xs mt-4">No hay otros usuarios registrados aún.</div>
+                  )}
                 </div>
               </ScrollArea>
             </Card>
@@ -245,7 +228,7 @@ export default function MessagesPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => navigate('/messages')}
+                      onClick={() => setSelectedContact(null)}
                       className="lg:hidden rounded-xl hover:bg-white/5 text-gray-400"
                     >
                       <ArrowLeft className="w-5 h-5" />

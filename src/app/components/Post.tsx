@@ -41,27 +41,7 @@ export interface PostData {
   sharedTimestamp?: string;
 }
 
-const SHARED_POSTS_KEY = 'nexly_shared_posts';
-
-export function getSharedPosts(userId?: string): PostData[] {
-  try {
-    const data = localStorage.getItem(SHARED_POSTS_KEY);
-    const all: PostData[] = data ? JSON.parse(data) : [];
-    if (userId) {
-      return all.filter(p => p.sharedBy === userId);
-    }
-    return all;
-  } catch {
-    return [];
-  }
-}
-
-function saveSharedPost(post: PostData) {
-  const shared = getSharedPosts();
-  shared.unshift(post);
-  localStorage.setItem(SHARED_POSTS_KEY, JSON.stringify(shared));
-  window.dispatchEvent(new CustomEvent('nexly-shared-update'));
-}
+// Shared posts are now handled directly as new records in Firebase via postsManager.sharePost
 
 interface PostProps {
   post: PostData;
@@ -85,35 +65,61 @@ export function Post({ post, onUpdate }: PostProps) {
   const currentUser = auth.getCurrentUser();
 
   useEffect(() => {
-    setPostContent(postsManager.getEditedContent(post.id) || post.content);
-  }, [post.content, post.id]);
+    // Listen to likes and comments specifically for this post
+    const unsubLikes = postsManager.listenToPostLikes(post.id, (likesMap) => {
+      setLikeCount(Object.keys(likesMap).length);
+      if (currentUser && likesMap[currentUser.id]) {
+        setLiked(true);
+      } else {
+        setLiked(false);
+      }
+    });
 
-  const handleLike = () => {
+    const unsubComments = postsManager.listenToPostComments(post.id, (comms) => {
+      setComments(comms);
+    });
+
+    return () => {
+      unsubLikes();
+      unsubComments();
+    };
+  }, [post.id, currentUser]);
+
+  const handleLike = async () => {
+    // Optimistic UI update
+    const previousState = liked;
     setLiked(!liked);
-    setLikeCount(liked ? likeCount - 1 : likeCount + 1);
+    setLikeCount(!liked ? likeCount + 1 : likeCount - 1);
+    
+    const res = await postsManager.toggleLike(post.id);
+    if (!res.success) {
+      // Revert if failed
+      setLiked(previousState);
+      setLikeCount(previousState ? likeCount + 1 : likeCount - 1);
+      toast.error(res.error || 'Error al actualizar Me gusta');
+    }
   };
 
-  const handleComment = () => {
+  const handleComment = async () => {
     if (!commentText.trim() || !currentUser) return;
 
-    const newComment: Comment = {
-      id: Date.now().toString(),
-      author: currentUser.name,
-      authorId: currentUser.id,
-      avatar: currentUser.avatar,
-      content: commentText,
-      timestamp: 'Ahora',
-    };
-
-    setComments([...comments, newComment]);
-    setCommentText('');
-    toast.success('Comentario publicado');
-    onUpdate?.();
+    const res = await postsManager.addComment(post.id, commentText);
+    if (res.success) {
+      setCommentText('');
+      toast.success('Comentario publicado');
+      onUpdate?.();
+    } else {
+      toast.error(res.error || 'Error al comentar');
+    }
   };
 
-  const handleDeleteComment = (commentId: string) => {
-    setComments(comments.filter((c: Comment) => c.id !== commentId));
-    toast.success('Comentario eliminado');
+  const handleDeleteComment = async (commentId: string) => {
+    const res = await postsManager.deleteComment(post.id, commentId);
+    if (res.success) {
+      toast.success('Comentario eliminado');
+    } else {
+      toast.error(res.error || 'Error al eliminar');
+    }
   };
 
   const handleStartEdit = (comment: Comment) => {
@@ -121,14 +127,16 @@ export function Post({ post, onUpdate }: PostProps) {
     setEditingText(comment.content);
   };
 
-  const handleSaveEdit = (commentId: string) => {
+  const handleSaveEdit = async (commentId: string) => {
     if (!editingText.trim()) return;
-    setComments(comments.map((c: Comment) =>
-      c.id === commentId ? { ...c, content: editingText } : c
-    ));
-    setEditingCommentId(null);
-    setEditingText('');
-    toast.success('Comentario editado');
+    const res = await postsManager.editComment(post.id, commentId, editingText);
+    if (res.success) {
+      setEditingCommentId(null);
+      setEditingText('');
+      toast.success('Comentario editado');
+    } else {
+      toast.error(res.error || 'Error al editar');
+    }
   };
 
   const handleCancelEdit = () => {
@@ -136,25 +144,17 @@ export function Post({ post, onUpdate }: PostProps) {
     setEditingText('');
   };
 
-  const handleShare = () => {
+  const handleShare = async () => {
     if (!currentUser) return;
 
-    const sharedPost: PostData = {
-      ...post,
-      id: `shared_${Date.now()}`,
-      isShared: true,
-      sharedBy: currentUser.id,
-      sharedByAvatar: currentUser.avatar,
-      sharedTimestamp: 'Justo ahora',
-      comments: [],
-      likes: 0,
-      shares: 0,
-    };
-
-    saveSharedPost(sharedPost);
-    setShareCount(shareCount + 1);
-    toast.success('Publicación compartida en tu perfil');
-    onUpdate?.();
+    toast.info('Compartiendo publicación...');
+    const result = await postsManager.sharePost(post);
+    if (result.success) {
+      toast.success('Publicación compartida en tu perfil');
+      onUpdate?.();
+    } else {
+      toast.error(result.error || 'Error al compartir');
+    }
   };
 
   const handleProfileClick = (userId?: string) => {
@@ -163,33 +163,38 @@ export function Post({ post, onUpdate }: PostProps) {
     }
   };
 
-  const handleDeletePost = () => {
+  const handleDeletePost = async () => {
     if (window.confirm('¿Estás seguro de que quieres eliminar esta publicación?')) {
       setIsDeleting(true);
       toast.success('Eliminando publicación...');
       
-      setTimeout(() => {
-        postsManager.deletePost(post.id);
+      const res = await postsManager.deletePost(post.id);
+      if (res.success) {
         setIsDeleted(true);
-        // Recarga automática como pidió el usuario
-        window.location.reload();
-      }, 500);
+      } else {
+        setIsDeleting(false);
+        toast.error(res.error || 'Error al eliminar');
+      }
     }
   };
 
-  const handleEditPost = () => {
+  const handleEditPost = async () => {
     if (!postContent.trim()) return;
-    postsManager.editPost(post.id, postContent);
-    setIsEditingPost(false);
-    toast.success('Publicación actualizada');
-    onUpdate?.();
+    const res = await postsManager.editPost(post.id, postContent);
+    if (res.success) {
+      setIsEditingPost(false);
+      toast.success('Publicación actualizada');
+      onUpdate?.();
+    } else {
+      toast.error(res.error || 'Error al actualizar');
+    }
   };
 
-  const handleReportPost = () => {
+  const handleReportPost = async () => {
     const reason = window.prompt('¿Por qué quieres reportar esta publicación?');
     if (reason) {
-      postsManager.reportPost(post, reason, currentUser?.id);
-      toast.success('Reporte enviado');
+      await postsManager.reportPost(post, reason);
+      // El toast ya lo hace postsManager internamente o podemos confiar en él
     }
   };
 
@@ -344,7 +349,7 @@ export function Post({ post, onUpdate }: PostProps) {
             >
               {comments.length} comentarios
             </button>
-            <span>{shareCount} compartidos</span>
+            <span>{post.shares || 0} compartidos</span>
           </div>
         </div>
 

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { auth } from '../utils/auth';
+import { db } from '../utils/firebase';
+import { ref, onValue, push, set } from 'firebase/database';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 import { ScrollArea } from './ui/scroll-area';
 import { Input } from './ui/input';
@@ -14,6 +16,7 @@ interface Contact {
   time: string;
   unread: number;
   online: boolean;
+  avatar?: string;
 }
 
 interface Message {
@@ -22,6 +25,7 @@ interface Message {
   text: string;
   sender: 'me' | 'other';
   time: string;
+  timestamp: number;
 }
 
 interface MessagesPanelProps {
@@ -31,97 +35,90 @@ interface MessagesPanelProps {
 
 export function MessagesPanel({ open, onOpenChange }: MessagesPanelProps) {
   const currentUser = auth.getCurrentUser();
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [messageText, setMessageText] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
 
-  const contacts: Contact[] = [
-    {
-      id: 'maria@nexly.com',
-      name: 'María García',
-      lastMessage: 'Hola! ¿Cómo estás?',
-      time: 'Hace 5 min',
-      unread: 2,
-      online: true,
-    },
-    {
-      id: 'carlos@nexly.com',
-      name: 'Carlos Rodríguez',
-      lastMessage: 'Nos vemos mañana',
-      time: 'Hace 1 hora',
-      unread: 0,
-      online: true,
-    },
-    {
-      id: 'ana@nexly.com',
-      name: 'Ana López',
-      lastMessage: 'Gracias por compartir!',
-      time: 'Hace 2 horas',
-      unread: 0,
-      online: false,
-    },
-    {
-      id: 'diego@nexly.com',
-      name: 'Diego Martínez',
-      lastMessage: 'Perfecto, confirmo',
-      time: 'Ayer',
-      unread: 1,
-      online: false,
-    },
-  ];
-
-  const loadMessages = () => {
-    if (!selectedContact || !currentUser) return;
-    const allMessages: Message[] = JSON.parse(localStorage.getItem('nexly_messages') || '[]');
-    const conversationKey = [currentUser.id, selectedContact.id].sort().join('_');
-    const conversationMessages = allMessages.filter(m => m.id.includes(conversationKey));
+  // Load contacts (other users)
+  useEffect(() => {
+    if (!currentUser || !open) return;
     
-    if (conversationMessages.length > 0) {
-      setMessages(conversationMessages);
-    } else {
-      setMessages([
-        { id: `${conversationKey}_1`, senderId: selectedContact.id, text: 'Hola! ¿En qué puedo ayudarte?', sender: 'other', time: '10:30' },
-      ]);
-    }
-  };
+    const usersRef = ref(db, 'users');
+    const unsubscribe = onValue(usersRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const loadedContacts: Contact[] = [];
+        Object.keys(data).forEach(key => {
+          if (key !== currentUser.id) {
+            const u = data[key];
+            loadedContacts.push({
+              id: key,
+              name: u.name,
+              lastMessage: 'Toca para chatear',
+              time: '',
+              unread: 0,
+              online: true,
+              avatar: u.avatar || '',
+            });
+          }
+        });
+        setContacts(loadedContacts);
+      }
+    });
+    return () => unsubscribe();
+  }, [currentUser, open]);
 
+  // Load messages
   useEffect(() => {
-    if (open && selectedContact) {
-      loadMessages();
-    }
-  }, [open, selectedContact?.id]);
+    if (!selectedContact || !currentUser || !open) return;
 
-  useEffect(() => {
-    const handler = () => {
-      if (open && selectedContact) loadMessages();
-    };
-    window.addEventListener('nexly-messages-update', handler);
-    return () => window.removeEventListener('nexly-messages-update', handler);
-  }, [open, selectedContact?.id]);
+    const conversationKey = [currentUser.id, selectedContact.id].sort().join('_');
+    const messagesRef = ref(db, `chats/${conversationKey}/messages`);
+    
+    const unsubscribe = onValue(messagesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const loadedMessages: Message[] = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key],
+          sender: data[key].senderId === currentUser.id ? 'me' : 'other'
+        }));
+        loadedMessages.sort((a, b) => a.timestamp - b.timestamp);
+        setMessages(loadedMessages);
+      } else {
+        setMessages([]);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [selectedContact, currentUser, open]);
 
   const handleContactClick = (contact: Contact) => {
     setSelectedContact(contact);
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!messageText.trim() || !selectedContact || !currentUser) return;
     
     const conversationKey = [currentUser.id, selectedContact.id].sort().join('_');
-    const newMessage: Message = {
-      id: `${conversationKey}_${Date.now()}`,
+    const messagesRef = ref(db, `chats/${conversationKey}/messages`);
+    const newMessageRef = push(messagesRef);
+    
+    await set(newMessageRef, {
       senderId: currentUser.id,
       text: messageText,
-      sender: 'me',
       time: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-    };
+      timestamp: Date.now()
+    });
     
-    const allMessages: Message[] = JSON.parse(localStorage.getItem('nexly_messages') || '[]');
-    localStorage.setItem('nexly_messages', JSON.stringify([...allMessages, newMessage]));
-    
-    setMessages(prev => [...prev, newMessage]);
     setMessageText('');
-    window.dispatchEvent(new CustomEvent('nexly-messages-update'));
   };
+
+  const filteredContacts = contacts.filter(c => 
+    c.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -145,13 +142,15 @@ export function MessagesPanel({ open, onOpenChange }: MessagesPanelProps) {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                   <Input 
                     placeholder="BUSCAR CONTACTOS..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10 bg-white/5 border-white/5 text-white placeholder:text-gray-600 rounded-xl focus:ring-blue-500/50 uppercase text-[10px] font-bold tracking-widest h-11" 
                   />
                 </div>
               </SheetHeader>
               <ScrollArea className="flex-1">
                 <div className="p-2 space-y-1">
-                  {contacts.map((contact, index) => (
+                  {filteredContacts.map((contact, index) => (
                     <motion.div
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -162,13 +161,17 @@ export function MessagesPanel({ open, onOpenChange }: MessagesPanelProps) {
                     >
                       <div className="flex gap-4">
                         <div className="relative flex-shrink-0">
-                          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center p-0.5">
-                            <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center overflow-hidden">
-                              <span className="text-white font-black italic text-lg uppercase">
-                                {contact.name.charAt(0)}
-                              </span>
+                          {contact.avatar ? (
+                            <img src={contact.avatar} alt={contact.name} className="w-12 h-12 rounded-full object-cover ring-2 ring-white/5" />
+                          ) : (
+                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center p-0.5">
+                              <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center overflow-hidden">
+                                <span className="text-white font-black italic text-lg uppercase">
+                                  {contact.name.charAt(0)}
+                                </span>
+                              </div>
                             </div>
-                          </div>
+                          )}
                           {contact.online && (
                             <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 border-[3px] border-[#0a0a0a] rounded-full" />
                           )}
@@ -192,6 +195,9 @@ export function MessagesPanel({ open, onOpenChange }: MessagesPanelProps) {
                       </div>
                     </motion.div>
                   ))}
+                  {filteredContacts.length === 0 && (
+                    <div className="p-4 text-center text-gray-500 text-xs mt-4">No hay otros usuarios registrados aún.</div>
+                  )}
                 </div>
               </ScrollArea>
             </>
@@ -208,13 +214,17 @@ export function MessagesPanel({ open, onOpenChange }: MessagesPanelProps) {
                 </Button>
                 <div className="flex items-center gap-3 flex-1">
                   <div className="relative">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full p-0.5">
-                      <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center">
-                        <span className="text-white font-black italic uppercase">
-                          {selectedContact.name.charAt(0)}
-                        </span>
+                    {selectedContact.avatar ? (
+                      <img src={selectedContact.avatar} alt={selectedContact.name} className="w-10 h-10 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full p-0.5">
+                        <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center">
+                          <span className="text-white font-black italic uppercase">
+                            {selectedContact.name.charAt(0)}
+                          </span>
+                        </div>
                       </div>
-                    </div>
+                    )}
                     {selectedContact.online && (
                       <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-[#0a0a0a] rounded-full" />
                     )}

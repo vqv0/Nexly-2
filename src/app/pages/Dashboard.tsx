@@ -23,89 +23,44 @@ export default function Dashboard() {
   const [suggestions, setSuggestions] = useState<(UserProfile & { mutualFriends: number })[]>([]);
   const [activeTab, setActiveTab] = useState('feed');
 
-  const loadSuggestions = useCallback(() => {
-    setSuggestions(friendsManager.getSuggestions());
-  }, []);
+  const loadSuggestions = useCallback(async () => {
+    if (!user) return;
+    const allUsers = await auth.getAllRegisteredUsers();
+    // In a real app we'd filter by actual friends from DB.
+    // Since friends logic is now async and listening, we can do a quick load here:
+    const me = user.id;
+    // Just show all users except self to start
+    const suggestions = allUsers.filter(u => u.id !== me);
+    setSuggestions(suggestions.map(s => ({...s, mutualFriends: 0})));
+  }, [user]);
 
   useEffect(() => {
-    if (!auth.isAuthenticated()) {
+    if (!auth.isAuthenticated() || !user) {
       navigate('/');
       return;
     }
 
     loadSuggestions();
 
-    const initialPosts: PostData[] = [
-      {
-        id: '1',
-        author: 'María García',
-        authorId: 'maria@nexly.com',
-        avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400',
-        content: '¡Increíble día explorando la naturaleza! 🌲✨',
-        image: 'https://images.unsplash.com/photo-1607206637161-97cf47a9a9df?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800',
-        timestamp: 'Hace 2 horas',
-        likes: 124,
-        comments: [],
-        shares: 5,
-      },
-      {
-        id: '2',
-        author: 'Carlos Rodríguez',
-        authorId: 'carlos@nexly.com',
-        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400',
-        content: 'Compartiendo mi nueva receta favorita. ¿Alguien más ama la cocina italiana? 🍝',
-        image: 'https://images.unsplash.com/photo-1700137805953-c5708d9cd955?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800',
-        timestamp: 'Hace 5 horas',
-        likes: 89,
-        comments: [],
-        shares: 3,
-      },
-    ];
-
-    setPosts(
-      initialPosts
-        .filter(p => !postsManager.isDeleted(p.id) && !usersManager.isBlocked(p.authorId || ''))
-        .map(p => {
-          const editedContent = postsManager.getEditedContent(p.id);
-          return editedContent ? { ...p, content: editedContent } : p;
-        })
-    );
-
-    const postsUpdateHandler = () => {
-      setPosts(currentPosts => 
-        currentPosts
-          .filter(p => !postsManager.isDeleted(p.id) && !usersManager.isBlocked(p.authorId || ''))
-          .map(p => {
-            const editedContent = postsManager.getEditedContent(p.id);
-            return editedContent ? { ...p, content: editedContent } : p;
-          })
-      );
-    };
-
-    const usersUpdateHandler = () => postsUpdateHandler();
+    const unsubPosts = postsManager.listenToPosts((fetchedPosts) => {
+      // Filtrar posts borrados lógicamente o bloqueados si existe isDeleted en Firebase (ahora mismo borramos físicamente)
+      setPosts(fetchedPosts.filter(p => !usersManager.isBlocked(p.authorId || '')));
+    });
 
     const friendsHandler = () => loadSuggestions();
     window.addEventListener('nexly-friends-update', friendsHandler);
-    window.addEventListener('nexly-posts-update', postsUpdateHandler);
-    window.addEventListener('nexly-users-update', usersUpdateHandler);
+    
     return () => {
+      unsubPosts();
       window.removeEventListener('nexly-friends-update', friendsHandler);
-      window.removeEventListener('nexly-posts-update', postsUpdateHandler);
-      window.removeEventListener('nexly-users-update', usersUpdateHandler);
     };
-  }, [navigate, loadSuggestions]);
+  }, [navigate, loadSuggestions, user]);
 
-  const handlePostCreated = (content: string, image?: string) => {
-    const newPost: PostData = {
-      id: Date.now().toString(),
-      author: user?.name || 'Usuario',
-      authorId: user?.id,
-      avatar: user?.avatar,
-      content,
-      image,
-      timestamp: 'Justo ahora',
-      likes: 0,
-      comments: [],
+  const handlePostCreated = () => {
+    // We don't need to manually insert. The listener in `useEffect` will handle it!
+    // But we leave the prop to let CreatePost signal if we want to scroll to top.
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
       shares: 0,
     };
     setPosts([newPost, ...posts]);

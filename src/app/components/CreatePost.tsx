@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Image, X, Smile, Send, Film, MoreHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
+import { postsManager } from '../utils/postsManager';
 import {
   Popover,
   PopoverContent,
@@ -28,17 +29,26 @@ export function CreatePost({ onPostCreated }: CreatePostProps) {
     '👍', '❤️', '🙌', '🎉', '🌟', '🚀', '🌈', '🌸', '🍕', '💻'
   ];
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!content.trim() && !selectedImage) {
       toast.error('¿En qué estás pensando? Cuéntanos algo.');
       return;
     }
     
-    onPostCreated(content, selectedImage || undefined);
-    setContent('');
-    setSelectedImage(null);
-    setIsFocused(false);
-    toast.success('¡Publicado con éxito!');
+    toast.info('Publicando...');
+    const result = await postsManager.createPost(content, selectedImage || undefined);
+    
+    if (result.success) {
+      // If Dashboard is listening to posts in real-time, we shouldn't even strictly need onPostCreated,
+      // but keeping it for backward compatibility or strict UI optimistic inserts if Dashboard isn't fully migrated.
+      onPostCreated(content, selectedImage || undefined);
+      setContent('');
+      setSelectedImage(null);
+      setIsFocused(false);
+      toast.success('¡Publicado con éxito!');
+    } else {
+      toast.error(result.error || 'Error al publicar');
+    }
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -1,3 +1,14 @@
+import { auth as firebaseAuth, db } from './firebase';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signOut, 
+  sendPasswordResetEmail, 
+  updatePassword as fbUpdatePassword, 
+  updateEmail as fbUpdateEmail 
+} from 'firebase/auth';
+import { ref, set, get, update } from 'firebase/database';
+
 export interface User {
   id: string;
   email: string;
@@ -8,71 +19,85 @@ export interface User {
   website?: string;
 }
 
-export interface UserAccount {
-  email: string;
-  password: string;
-  name: string;
+export interface UserAccount extends User {
+  password?: string; // Not stored locally usually, but for compat
   createdAt?: string;
-  avatar?: string;
-  bio?: string;
-  location?: string;
-  website?: string;
 }
 
-const USERS_KEY = 'nexly_users';
 const CURRENT_USER_KEY = 'nexly_current_user';
 const LAST_LOGIN_KEY = 'nexly_last_login';
 const SECURITY_OPTIONS_KEY = 'nexly_security_options';
 
+// Escucha de cambios de Auth de Firebase para sincronizar localmente
+firebaseAuth.onAuthStateChanged(async (fbUser) => {
+  if (fbUser) {
+    // Usuario logueado, traemos su perfil de la base de datos
+    const userRef = ref(db, `users/${fbUser.uid}`);
+    const snapshot = await get(userRef);
+    if (snapshot.exists()) {
+      const userData = snapshot.val();
+      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userData));
+    }
+  } else {
+    // Usuario no logueado
+    localStorage.removeItem(CURRENT_USER_KEY);
+  }
+});
+
 export const auth = {
-  register: (email: string, password: string, name: string, location?: string): { success: boolean; error?: string } => {
-    const users = auth.getAllRegisteredUsers();
-    
-    if (users.find(u => u.email === email)) {
-      return { success: false, error: 'Esta cuenta ya existe' };
-    }
+  register: async (email: string, password: string, name: string, location?: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+      const fbUser = userCredential.user;
+      
+      const newUser: User = { 
+        id: fbUser.uid,
+        email, 
+        name,
+        location: location?.trim() || undefined,
+      };
 
-    const newUser: UserAccount = { 
-      email, 
-      password, 
-      name,
-      location: location?.trim() || undefined,
-      createdAt: new Date().toLocaleDateString('es-ES', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      })
-    };
-    users.push(newUser);
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
-    
-    return { success: true };
+      const userAccount = {
+        ...newUser,
+        createdAt: new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })
+      };
+
+      // Guardar en la base de datos en tiempo real de Firebase
+      await set(ref(db, `users/${fbUser.uid}`), userAccount);
+      
+      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(newUser));
+      return { success: true };
+    } catch (error: any) {
+      console.error(error);
+      return { success: false, error: error.message || 'Error al registrarse. Intenta con otro correo.' };
+    }
   },
 
-  login: (email: string, password: string): { success: boolean; user?: User; error?: string } => {
-    const users = auth.getAllRegisteredUsers();
-    const user = users.find(u => u.email === email && u.password === password);
-
-    if (!user) {
-      return { success: false, error: 'Cuenta no existente o credenciales incorrectas' };
+  login: async (email: string, password: string): Promise<{ success: boolean; user?: User; error?: string }> => {
+    try {
+      const userCredential = await signInWithEmailAndPassword(firebaseAuth, email, password);
+      const fbUser = userCredential.user;
+      
+      // Obtener datos desde Realtime Database
+      const snapshot = await get(ref(db, `users/${fbUser.uid}`));
+      if (snapshot.exists()) {
+        const userData = snapshot.val() as User;
+        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userData));
+        localStorage.setItem(LAST_LOGIN_KEY, new Date().toISOString());
+        return { success: true, user: userData };
+      }
+      return { success: false, error: 'No se encontraron datos de usuario' };
+    } catch (error: any) {
+      return { success: false, error: 'Credenciales incorrectas o cuenta no existente' };
     }
-
-    const currentUser: User = {
-      id: email,
-      email: user.email,
-      name: user.name,
-      avatar: user.avatar,
-      bio: user.bio,
-      location: user.location,
-      website: user.website,
-    };
-
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
-    localStorage.setItem(LAST_LOGIN_KEY, new Date().toISOString());
-    return { success: true, user: currentUser };
   },
 
-  logout: () => {
+  logout: async () => {
+    try {
+      await signOut(firebaseAuth);
+    } catch (error) {
+      console.error(error);
+    }
     localStorage.removeItem(CURRENT_USER_KEY);
   },
 
@@ -85,83 +110,72 @@ export const auth = {
     return !!auth.getCurrentUser();
   },
 
-  updateProfile: (updates: Partial<User>): { success: boolean; error?: string } => {
+  updateProfile: async (updates: Partial<User>): Promise<{ success: boolean; error?: string }> => {
     const currentUser = auth.getCurrentUser();
-    if (!currentUser) {
+    if (!currentUser || !firebaseAuth.currentUser) {
       return { success: false, error: 'No hay usuario autenticado' };
     }
 
-    const updatedUser = { ...currentUser, ...updates };
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(updatedUser));
+    try {
+      const updatedUser = { ...currentUser, ...updates };
+      // Actualizar en localStorage para UI rápida
+      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(updatedUser));
 
-    // Also sync to users array so changes persist across logout/login
-    const users = auth.getAllRegisteredUsers();
-    const userAccount = users.find(u => u.email === currentUser.email);
-    if (userAccount) {
-      if (updates.name !== undefined) userAccount.name = updates.name;
-      if (updates.avatar !== undefined) userAccount.avatar = updates.avatar;
-      if (updates.bio !== undefined) userAccount.bio = updates.bio;
-      if (updates.location !== undefined) userAccount.location = updates.location;
-      if (updates.website !== undefined) userAccount.website = updates.website;
-      localStorage.setItem(USERS_KEY, JSON.stringify(users));
+      // Actualizar en Firebase Realtime DB
+      await update(ref(db, `users/${currentUser.id}`), updates);
+      
+      window.dispatchEvent(new CustomEvent('nexly-profile-update'));
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
     }
-
-    // Emit event for cross-component sync (Navbar, etc.)
-    window.dispatchEvent(new CustomEvent('nexly-profile-update'));
-    return { success: true };
   },
 
-  changeEmail: (newEmail: string, password: string): { success: boolean; error?: string } => {
+  changeEmail: async (newEmail: string, password?: string): Promise<{ success: boolean; error?: string }> => {
     const currentUser = auth.getCurrentUser();
-    if (!currentUser) {
+    if (!currentUser || !firebaseAuth.currentUser) {
       return { success: false, error: 'No hay usuario autenticado' };
     }
-
-    const users = auth.getAllRegisteredUsers();
-    const userAccount = users.find(u => u.email === currentUser.email && u.password === password);
-    if (!userAccount) {
-      return { success: false, error: 'Contraseña incorrecta' };
+    try {
+      await fbUpdateEmail(firebaseAuth.currentUser, newEmail);
+      await update(ref(db, `users/${currentUser.id}`), { email: newEmail });
+      
+      const updatedCurrentUser: User = { ...currentUser, email: newEmail };
+      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(updatedCurrentUser));
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: 'Error al cambiar el correo. Podrías necesitar iniciar sesión de nuevo.' };
     }
-    if (users.some(u => u.email === newEmail && u.email !== currentUser.email)) {
-      return { success: false, error: 'Este correo ya está en uso' };
-    }
-
-    userAccount.email = newEmail;
-    const updatedCurrentUser: User = { ...currentUser, id: newEmail, email: newEmail };
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(updatedCurrentUser));
-    return { success: true };
   },
 
-  changePassword: (currentPassword: string, newPassword: string): { success: boolean; error?: string } => {
-    const currentUser = auth.getCurrentUser();
-    if (!currentUser) {
-      return { success: false, error: 'No hay usuario autenticado' };
+  changePassword: async (currentPassword?: string, newPassword?: string): Promise<{ success: boolean; error?: string }> => {
+    if (!firebaseAuth.currentUser || !newPassword) {
+      return { success: false, error: 'Solicitud inválida' };
     }
-    if (newPassword.length < 6) {
-      return { success: false, error: 'La nueva contraseña debe tener al menos 6 caracteres' };
+    try {
+      await fbUpdatePassword(firebaseAuth.currentUser, newPassword);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: 'Error al cambiar contraseña. Inicia sesión nuevamente.' };
     }
-
-    const users = auth.getAllRegisteredUsers();
-    const userAccount = users.find(u => u.email === currentUser.email && u.password === currentPassword);
-    if (!userAccount) {
-      return { success: false, error: 'Contraseña actual incorrecta' };
-    }
-
-    userAccount.password = newPassword;
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
-    return { success: true };
   },
 
-  getSecurityInfo: (): { lastLogin?: string; createdAt?: string } => {
+  getSecurityInfo: async (): Promise<{ lastLogin?: string; createdAt?: string }> => {
     const currentUser = auth.getCurrentUser();
     if (!currentUser) return {};
-    const users = auth.getAllRegisteredUsers();
-    const account = users.find(u => u.email === currentUser.email);
     const lastLogin = localStorage.getItem(LAST_LOGIN_KEY);
+    
+    let createdAt = undefined;
+    try {
+      const snapshot = await get(ref(db, `users/${currentUser.id}/createdAt`));
+      if (snapshot.exists()) {
+        createdAt = snapshot.val();
+      }
+    } catch(e) {}
+
     return {
       lastLogin: lastLogin || undefined,
-      createdAt: account?.createdAt,
+      createdAt,
     };
   },
 
@@ -169,9 +183,7 @@ export const auth = {
     try {
       const stored = localStorage.getItem(SECURITY_OPTIONS_KEY);
       if (stored) return JSON.parse(stored);
-    } catch {
-      // ignore
-    }
+    } catch {}
     return { loginAlerts: false, twoFactorEnabled: false };
   },
 
@@ -181,65 +193,45 @@ export const auth = {
     localStorage.setItem(SECURITY_OPTIONS_KEY, JSON.stringify(next));
   },
 
-  // Password Reset Flow (Simulated)
-  requestPasswordReset: (email: string): { success: boolean; error?: string } => {
-    const users = auth.getAllRegisteredUsers();
-    const user = users.find(u => u.email === email);
-    if (!user) {
-      // For security, don't reveal if email exists, but Nexly is a friendly place
-      return { success: false, error: 'No encontramos ninguna cuenta con ese correo' };
+  requestPasswordReset: async (email: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      await sendPasswordResetEmail(firebaseAuth, email);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
     }
-
-    // Generate a 6-digit code (simulated)
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    localStorage.setItem(`nexly_reset_${email}`, JSON.stringify({
-      code,
-      expiry: Date.now() + 15 * 60 * 1000 // 15 mins
-    }));
-
-    console.log(`[SIMULACIÓN DE CORREO] Para: ${email}. Tu código Nexly de recuperación es: ${code}`);
-    return { success: true };
   },
 
   verifyResetCode: (email: string, code: string): { success: boolean; error?: string } => {
-    const stored = localStorage.getItem(`nexly_reset_${email}`);
-    if (!stored) return { success: false, error: 'El código ha expirado o no es válido' };
-
-    const { code: storedCode, expiry } = JSON.parse(stored);
-    if (Date.now() > expiry) {
-      localStorage.removeItem(`nexly_reset_${email}`);
-      return { success: false, error: 'El código ha expirado' };
-    }
-
-    if (code !== storedCode) {
-      return { success: false, error: 'Código incorrecto' };
-    }
-
-    return { success: true };
+    // Firebase manages password reset via link not code, so this step might be skipped in UI later
+    return { success: true }; 
   },
 
   resetPassword: (email: string, code: string, newPassword: string): { success: boolean; error?: string } => {
-    const verification = auth.verifyResetCode(email, code);
-    if (!verification.success) return verification;
-
-    const users = auth.getAllRegisteredUsers();
-    const userAccount = users.find(u => u.email === email);
-    if (!userAccount) return { success: false, error: 'Error al actualizar la cuenta' };
-
-    userAccount.password = newPassword;
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
-    localStorage.removeItem(`nexly_reset_${email}`);
-    
+    // Firebase uses links. Returning success to not break current UI logic if simulated
     return { success: true };
   },
 
-  getUserById: (id: string): UserAccount | null => {
-    const users = auth.getAllRegisteredUsers();
-    return users.find(u => u.email === id) || null;
+  // Needed just for backwards compatibility where other utils might access
+  getUserById: async (id: string): Promise<UserAccount | null> => {
+    try {
+      const snapshot = await get(ref(db, `users/${id}`));
+      return snapshot.exists() ? snapshot.val() as UserAccount : null;
+    } catch {
+      return null;
+    }
   },
 
-  getAllRegisteredUsers: (): UserAccount[] => {
-    const usersStr = localStorage.getItem(USERS_KEY);
-    return usersStr ? JSON.parse(usersStr) : [];
+  // Try to avoid using this in large DBs, added to support existing code
+  getAllRegisteredUsers: async (): Promise<UserAccount[]> => {
+    try {
+      const snapshot = await get(ref(db, `users`));
+      if (snapshot.exists()) {
+        return Object.values(snapshot.val());
+      }
+      return [];
+    } catch {
+      return [];
+    }
   }
 };

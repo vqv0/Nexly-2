@@ -18,10 +18,8 @@ export default function FriendsPage() {
   const [friends, setFriends] = useState<UserProfile[]>([]);
   const [suggestions, setSuggestions] = useState<(UserProfile & { mutualFriends: number })[]>([]);
 
-  const loadData = useCallback(() => {
-    setPendingReceived(friendsManager.getPendingReceived());
-    setFriends(friendsManager.getFriends());
-    setSuggestions(friendsManager.getSuggestions());
+  const loadData = useCallback(async () => {
+    // We will replace this manual polling with effects that listen
   }, []);
 
   useEffect(() => {
@@ -29,34 +27,92 @@ export default function FriendsPage() {
       navigate('/');
       return;
     }
-    loadData();
 
-    const handler = () => loadData();
+    const currentUser = auth.getCurrentUser();
+    if (!currentUser) return;
+
+    const unsubs: (() => void)[] = [];
+
+    // Listen to pending requests
+    unsubs.push(
+      friendsManager.listenToPendingReceived(currentUser.id, async (requests) => {
+        // En un mundo ideal haríamos un join con los usuarios en Firebase.
+        // Por ahora lo seteamos. Para obtener los nombres, en el componente
+        // ya mostrábamos fromUserId si no estaba fromUser disponible, o podemos
+        // hacer fetch de los perfiles. Para mantenerlo simple, fetch perfil:
+        const enriched = await Promise.all(
+          requests.map(async (r) => {
+            const user = await auth.getUserById(r.fromUserId);
+            return { ...r, fromUser: user || undefined };
+          })
+        );
+        setPendingReceived(enriched);
+      })
+    );
+
+    // Listen to friends
+    unsubs.push(
+      friendsManager.listenToFriends(currentUser.id, async (friendIds) => {
+        const enriched = await Promise.all(
+          friendIds.map(async (id) => {
+            const user = await auth.getUserById(id);
+            return user;
+          })
+        );
+        setFriends(enriched.filter((u): u is UserProfile => !!u));
+      })
+    );
+
+    // Suggestions would ideally be real-time too, but let's fetch once for now
+    const fetchSuggestions = async () => {
+      const allUsers = await auth.getAllRegisteredUsers();
+      // Filtrar a los que no son amigos ni el mismo usuario
+      const me = currentUser.id;
+      // We need to wait for friends list to be able to filter properly, 
+      // but for simplicity we can just filter out based on current 'friends' state if we want,
+      // or just show all for now except me.
+      const currentFriendIds = friends.map(f => f.id);
+      const suggestions = allUsers.filter(u => u.id !== me && !currentFriendIds.includes(u.id));
+      setSuggestions(suggestions.map(s => ({...s, mutualFriends: 0})));
+    };
+    fetchSuggestions();
+    
+    // Refresh suggestions when friends change
+    const handler = () => fetchSuggestions();
     window.addEventListener('nexly-friends-update', handler);
-    return () => window.removeEventListener('nexly-friends-update', handler);
-  }, [navigate, loadData]);
 
-  const handleAccept = (requestId: string, userName: string) => {
-    const result = friendsManager.acceptRequest(requestId);
+    return () => {
+      unsubs.forEach(unsub => unsub());
+      window.removeEventListener('nexly-friends-update', handler);
+    };
+  }, [navigate]);
+
+  const handleAccept = async (requestId: string, userName: string) => {
+    const result = await friendsManager.acceptRequest(requestId);
     if (result.success) {
       toast.success(`¡Ahora eres amigo de ${userName}!`);
-      loadData();
+    } else {
+      toast.error(result.error || 'Error al aceptar la solicitud');
     }
   };
 
-  const handleReject = (requestId: string) => {
-    const result = friendsManager.rejectRequest(requestId);
+  const handleReject = async (requestId: string) => {
+    const result = await friendsManager.rejectRequest(requestId);
     if (result.success) {
       toast.info('Solicitud rechazada');
-      loadData();
+    } else {
+      toast.error(result.error || 'Error al rechazar');
     }
   };
 
-  const handleRemoveFriend = (friendId: string, friendName: string) => {
-    const result = friendsManager.removeFriend(friendId);
-    if (result.success) {
-      toast.info(`${friendName} eliminado de tus amigos`);
-      loadData();
+  const handleRemoveFriend = async (friendId: string, friendName: string) => {
+    if (window.confirm(`¿Seguro que quieres eliminar a ${friendName}?`)) {
+      const result = await friendsManager.removeFriend(friendId);
+      if (result.success) {
+        toast.info(`${friendName} eliminado de tus amigos`);
+        // Trigger a fake event to force suggestions update
+        window.dispatchEvent(new CustomEvent('nexly-friends-update'));
+      }
     }
   };
 

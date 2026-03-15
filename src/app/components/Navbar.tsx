@@ -85,8 +85,8 @@ export function Navbar() {
     };
   }, [location.pathname]);
 
-  const handleLogout = () => {
-    auth.logout();
+  const handleLogout = async () => {
+    await auth.logout();
     toast.success('Sesión cerrada con éxito');
     navigate('/');
   };

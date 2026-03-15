@@ -21,10 +21,10 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const result = auth.login(email, password);
+    const result = await auth.login(email, password);
     if (result.success) {
       toast.success('¡Bienvenido de nuevo!');
       navigate('/dashboard');
@@ -34,14 +34,14 @@ export default function Login() {
     setLoading(false);
   };
 
-  const handleRequestReset = (e: React.FormEvent) => {
+  const handleRequestReset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
       toast.error('Ingresa tu correo');
       return;
     }
     setLoading(true);
-    const result = auth.requestPasswordReset(email);
+    const result = await auth.requestPasswordReset(email);
     if (result.success) {
       toast.success('Código enviado a tu correo (mira la consola)');
       setStep('forgot_verify');
@@ -68,7 +68,7 @@ export default function Login() {
     setLoading(false);
   };
 
-  const handleResetPassword = (e: React.FormEvent) => {
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword.length < 6) {
       toast.error('La contraseña debe tener al menos 6 caracteres');
