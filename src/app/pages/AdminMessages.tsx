@@ -1,28 +1,23 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate } from 'react-router';
 import { adminAuth } from '../utils/adminAuth';
 import { AdminNavbar } from '../components/AdminNavbar';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
-import { Search, MessageSquare, ShieldAlert, History, User, FilterX } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Button } from '../components/ui/button';
+import { Search, MessageSquare } from 'lucide-react';
 
 interface Message {
   id: string;
-  senderId: string;
-  text: string;
-  time: string;
-  sender?: 'me' | 'other'; // For user-specific view compatibility
+  sender: string;
+  receiver: string;
+  content: string;
+  timestamp: string;
 }
 
 export default function AdminMessages() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const userFilter = searchParams.get('user');
-  
   const [conversations, setConversations] = useState<{[key: string]: Message[]}>({});
-  const [searchTerm, setSearchTerm] = useState(userFilter || '');
+  const [searchTerm, setSearchTerm] = useState('');
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
 
   useEffect(() => {
@@ -30,39 +25,27 @@ export default function AdminMessages() {
       navigate('/admin');
       return;
     }
+
     loadMessages();
   }, [navigate]);
 
-  useEffect(() => {
-    if (userFilter) {
-      setSearchTerm(userFilter);
-    }
-  }, [userFilter]);
-
   const loadMessages = () => {
+    // Cargar mensajes de localStorage y agruparlos por conversación
     const messages: Message[] = JSON.parse(
       localStorage.getItem('nexly_messages') || '[]'
     );
 
+    // Agrupar mensajes por conversación
     const grouped: {[key: string]: Message[]} = {};
     messages.forEach((msg) => {
-      // The message ID contains the conversation key: sender_receiver_timestamp
-      const parts = msg.id.split('_');
-      if (parts.length >= 2) {
-        const conversationKey = [parts[0], parts[1]].sort().join(' - ');
-        if (!grouped[conversationKey]) {
-          grouped[conversationKey] = [];
-        }
-        grouped[conversationKey].push(msg);
+      const conversationKey = [msg.sender, msg.receiver].sort().join('-');
+      if (!grouped[conversationKey]) {
+        grouped[conversationKey] = [];
       }
+      grouped[conversationKey].push(msg);
     });
 
     setConversations(grouped);
-  };
-
-  const clearFilter = () => {
-    setSearchTerm('');
-    setSearchParams({});
   };
 
   const conversationKeys = Object.keys(conversations);
@@ -71,225 +54,130 @@ export default function AdminMessages() {
   );
 
   return (
-    <div className="min-h-screen bg-[#050505] dark:text-white">
+    <div className="min-h-screen bg-gray-50">
       <AdminNavbar />
 
-      {/* Background Effect */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20 expensive-bg">
-        <div className="absolute top-0 right-0 w-[60%] h-[60%] bg-purple-600/10 blur-[150px] rounded-full" />
-        <div className="absolute bottom-0 left-0 w-[50%] h-[50%] bg-blue-600/10 blur-[150px] rounded-full" />
-      </div>
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">
+            Gestión de Mensajes
+          </h1>
+          <p className="text-gray-600 mt-2">
+            Ver conversaciones entre usuarios
+          </p>
+        </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-24 relative z-10">
-        <motion.div 
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="mb-10"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg shadow-lg">
-                  <ShieldAlert className="w-6 h-6" />
-                </div>
-                <h1 className="text-3xl font-black italic uppercase tracking-tighter">REGISTRO DE <span className="text-purple-400">MENSAJES</span></h1>
-              </div>
-              <p className="text-gray-500 font-bold uppercase tracking-[0.3em] text-[10px] ml-1">
-                Supervisión y auditoría de comunicaciones privadas
-              </p>
+        {/* Search Bar */}
+        <Card className="mb-6">
+          <CardContent className="pt-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Input
+                placeholder="Buscar conversaciones..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
             </div>
-            {searchTerm && (
-              <Button 
-                onClick={clearFilter}
-                variant="outline" 
-                className="bg-white/5 dark:bg-white/5 border-white/10 hover:bg-white/10 dark:bg-white/10 text-xs font-black uppercase tracking-widest rounded-xl h-10 px-4 group"
-              >
-                <FilterX className="w-4 h-4 mr-2 text-purple-400 group-hover:scale-110 transition-transform" />
-                Limpiar Filtro
-              </Button>
-            )}
-          </div>
-        </motion.div>
+          </CardContent>
+        </Card>
 
-        {/* Search & Filter */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="mb-8"
-        >
-          <Card className="bg-white/5 dark:bg-white/5 border-white/5 backdrop-blur-3xl overflow-hidden">
-            <CardContent className="pt-6">
-              <div className="relative group">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 w-5 h-5 group-focus-within:text-purple-400 transition-colors" />
-                <Input
-                  placeholder="FILTRAR CONVERSACIONES POR USUARIO O ID..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-12 bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-700 h-14 rounded-2xl focus:ring-purple-500/20 focus:border-purple-500/40 transition-all font-bold uppercase tracking-widest text-[10px]"
-                />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Conversations List */}
+          <Card className="lg:col-span-1">
+            <CardHeader>
+              <CardTitle>Conversaciones</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {filteredConversations.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p>No hay mensajes</p>
+                  </div>
+                ) : (
+                  filteredConversations.map((key) => {
+                    const msgs = conversations[key];
+                    const lastMsg = msgs[msgs.length - 1];
+                    const participants = key.split('-');
+
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setSelectedConversation(key)}
+                        className={`w-full text-left p-3 rounded-lg transition-colors ${
+                          selectedConversation === key
+                            ? 'bg-blue-50 border-2 border-blue-500'
+                            : 'hover:bg-gray-50 border-2 border-transparent'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <MessageSquare className="w-4 h-4 text-gray-500" />
+                          <p className="font-semibold text-sm">
+                            {participants[0]} ↔ {participants[1]}
+                          </p>
+                        </div>
+                        <p className="text-xs text-gray-500 truncate">
+                          {lastMsg.content}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {msgs.length} mensajes
+                        </p>
+                      </button>
+                    );
+                  })
+                )}
               </div>
             </CardContent>
           </Card>
-        </motion.div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[650px]">
-          {/* Conversations List */}
-          <motion.div 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
-            className="lg:col-span-4 h-full"
-          >
-            <Card className="bg-white/5 dark:bg-white/5 border-white/5 backdrop-blur-3xl h-full flex flex-col overflow-hidden">
-              <CardHeader className="border-b border-white/5 py-4">
-                <CardTitle className="text-xs font-black italic uppercase tracking-widest text-gray-500 flex items-center gap-2">
-                  <History className="w-4 h-4" />
-                  Hilos Auditados
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                <div className="space-y-3">
-                  {filteredConversations.length === 0 ? (
-                    <div className="text-center py-20 text-gray-600 font-black uppercase tracking-widest text-[10px]">
-                      No hay registros disponibles
-                    </div>
-                  ) : (
-                    filteredConversations.map((key) => {
-                      const msgs = conversations[key];
-                      const lastMsg = msgs[msgs.length - 1];
-                      const participants = key.split(' - ');
-                      const isSelected = selectedConversation === key;
-
-                      return (
-                        <motion.button
-                          key={key}
-                          whileHover={{ x: 5 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => setSelectedConversation(key)}
-                          className={`w-full text-left p-4 rounded-2xl transition-all border flex flex-col gap-2 relative group overflow-hidden ${
-                            isSelected
-                              ? 'bg-purple-500/10 border-purple-500/50 shadow-lg shadow-purple-500/5'
-                              : 'bg-white/5 dark:bg-white/5 border-white/5 hover:bg-white/10 dark:bg-white/10'
-                          }`}
-                        >
-                          {isSelected && <div className="absolute left-0 top-0 bottom-0 w-1 bg-purple-500" />}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-purple-500' : 'bg-white/10 dark:bg-white/10'}`}>
-                                <User className={`w-3 h-3 ${isSelected ? 'text-white' : 'text-gray-400'}`} />
-                              </div>
-                              <p className={`font-black uppercase tracking-tight text-[11px] ${isSelected ? 'text-white' : 'text-gray-300'}`}>
-                                {participants[0]} <span className="text-purple-500 mx-1">/</span> {participants[1]}
-                              </p>
-                            </div>
-                          </div>
-                          <p className="text-[10px] text-gray-500 line-clamp-1 italic font-bold">
-                            "{lastMsg.text}"
-                          </p>
-                          <div className="flex items-center justify-between mt-1">
-                            <span className="text-[8px] font-black text-gray-600 uppercase tracking-widest">{msgs.length} EVENTOS</span>
-                            <span className="text-[8px] font-black text-purple-400 uppercase tracking-widest">ACTIVO</span>
-                          </div>
-                        </motion.button>
-                      );
-                    })
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
 
           {/* Messages Display */}
-          <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.3 }}
-            className="lg:col-span-8 h-full"
-          >
-            <Card className="bg-white/5 dark:bg-white/5 border-white/5 backdrop-blur-3xl h-full flex flex-col overflow-hidden relative">
-              <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-purple-500/20 to-transparent" />
-              <CardHeader className="border-b border-white/5 py-6">
-                <CardTitle className="text-sm font-black italic uppercase tracking-tighter">
-                  {selectedConversation ? (
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                      MONITOREO: <span className="text-purple-400">{selectedConversation}</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3 text-gray-600">
-                      <ShieldAlert className="w-5 h-5 opacity-30" />
-                      SELECCIONE UN HILO DE COMUNICACIÓN
-                    </div>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-black/5">
-                <AnimatePresence mode="wait">
-                  {selectedConversation ? (
-                    <motion.div 
-                      key={selectedConversation}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="space-y-6"
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>
+                {selectedConversation
+                  ? `Conversación: ${selectedConversation.replace('-', ' ↔ ')}`
+                  : 'Selecciona una conversación'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {selectedConversation ? (
+                <div className="space-y-4 max-h-[600px] overflow-y-auto">
+                  {conversations[selectedConversation].map((msg) => (
+                    <div
+                      key={msg.id}
+                      className="bg-gray-50 rounded-lg p-4 border"
                     >
-                      {conversations[selectedConversation].map((msg, idx) => (
-                        <motion.div
-                          key={msg.id}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: idx * 0.05 }}
-                          className="group"
-                        >
-                          <div className="flex items-center gap-3 mb-2">
-                             <div className="flex items-center gap-2 px-3 py-1 bg-white/5 dark:bg-white/5 rounded-full ring-1 ring-white/10 group-hover:ring-purple-500/30 transition-all">
-                                <p className="font-black text-[9px] uppercase tracking-widest text-purple-400">{msg.senderId}</p>
-                                <div className="w-1 h-1 bg-gray-700 rounded-full" />
-                                <p className="text-[8px] font-bold text-gray-500 uppercase tracking-widest">{msg.time}</p>
-                             </div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center">
+                            <span className="text-white text-xs font-semibold">
+                              {msg.sender.charAt(0).toUpperCase()}
+                            </span>
                           </div>
-                          <div className="pl-4 border-l-2 border-white/5 group-hover:border-purple-500/20 transition-all">
-                            <p className="text-gray-300 text-[13px] leading-relaxed font-bold tracking-tight bg-white/5 dark:bg-white/5 p-4 rounded-2xl rounded-tl-none border border-white/5 group-hover:border-white/10 transition-all">
-                              {msg.text}
+                          <div>
+                            <p className="font-semibold text-sm">{msg.sender}</p>
+                            <p className="text-xs text-gray-500">
+                              Para: {msg.receiver}
                             </p>
                           </div>
-                        </motion.div>
-                      ))}
-                    </motion.div>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-center opacity-10">
-                      <MessageSquare className="w-24 h-24 mb-6" />
-                      <p className="text-xl font-black uppercase tracking-[0.5em]">SYSTEM HOLD</p>
+                        </div>
+                        <p className="text-xs text-gray-500">{msg.timestamp}</p>
+                      </div>
+                      <p className="text-gray-700">{msg.content}</p>
                     </div>
-                  )}
-                </AnimatePresence>
-              </CardContent>
-              {selectedConversation && (
-                <div className="p-4 border-t border-white/5 bg-black/20">
-                  <p className="text-[8px] font-black text-gray-600 uppercase tracking-[0.5em] text-center">CANAL DE AUDITORÍA EN TIEMPO REAL - NEXLY SECURE</p>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                  <p>Selecciona una conversación para ver los mensajes</p>
                 </div>
               )}
-            </Card>
-          </motion.div>
+            </CardContent>
+          </Card>
         </div>
       </div>
-
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.05);
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.1);
-        }
-      `}</style>
     </div>
   );
 }

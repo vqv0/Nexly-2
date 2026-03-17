@@ -1,9 +1,7 @@
-import { createRoot } from "react-dom/client";
-import App from "./app/App";
-import "./styles/index.css";
 
-const container = document.getElementById("root");
-if (container) {
-  const root = createRoot(container);
-  root.render(<App />);
-}
+  import { createRoot } from "react-dom/client";
+  import App from "./app/App.tsx";
+  import "./styles/index.css";
+
+  createRoot(document.getElementById("root")!).render(<App />);
+  

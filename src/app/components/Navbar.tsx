@@ -1,11 +1,12 @@
-import { useNavigate, useLocation } from 'react-router';
-import { useState, useEffect, forwardRef } from 'react';
+import { useNavigate } from 'react-router';
+import { useState, forwardRef } from 'react';
 import { auth } from '../utils/auth';
-import { friendsManager } from '../utils/friendsManager';
-import { Home, Users, Bell, MessageCircle, LogOut, User, Settings, Search, Eye, EyeOff } from 'lucide-react';
+import { Button } from './ui/button';
+import { Home, Users, Bell, MessageCircle, LogOut, Settings, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { NotificationsPanel } from './NotificationsPanel';
 import { MessagesPanel } from './MessagesPanel';
+import { ProfileEditDialog } from './ProfileEditDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,7 +14,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { motion, AnimatePresence } from 'motion/react';
 
 // Profile button component with forwardRef
 const ProfileButton = forwardRef<
@@ -21,28 +21,27 @@ const ProfileButton = forwardRef<
   {
     user: { name: string; avatar?: string } | null;
     onClick?: () => void;
-  } & React.ButtonHTMLAttributes<HTMLButtonElement>
->(({ user, ...props }, ref) => (
+  }
+>(({ user, onClick }, ref) => (
   <button
     ref={ref}
-    type="button"
-    {...props}
-    className="flex items-center gap-2 hover:bg-white/10 dark:bg-white/10 rounded-xl px-2.5 py-1.5 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 border border-transparent hover:border-white/10"
+    onClick={onClick}
+    className="flex items-center gap-2 hover:bg-gray-100 rounded-lg p-1.5 transition-colors"
   >
     {user?.avatar ? (
       <img
         src={user.avatar}
         alt={user.name}
-        className="w-8 h-8 rounded-full object-cover ring-2 ring-white/5 shadow-inner"
+        className="w-8 h-8 rounded-full object-cover"
       />
     ) : (
-      <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center ring-2 ring-white/5 shadow-inner">
-        <span className="text-white text-sm font-bold">
+      <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center">
+        <span className="text-white text-sm font-semibold">
           {user?.name.charAt(0).toUpperCase()}
         </span>
       </div>
     )}
-    <span className="text-sm font-bold text-white hidden md:block">{user?.name}</span>
+    <span className="text-sm font-medium">{user?.name}</span>
   </button>
 ));
 
@@ -50,239 +49,158 @@ ProfileButton.displayName = 'ProfileButton';
 
 export function Navbar() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [user, setUser] = useState(auth.getCurrentUser());
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
-  const [scrolled, setScrolled] = useState(false);
-  const [showNav, setShowNav] = useState(true);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 20);
-    };
-    window.addEventListener('scroll', handleScroll);
-
-    // Close panels on route change
-    setNotificationsOpen(false);
-    setMessagesOpen(false);
-
-    const updateCount = () => {
-      setPendingCount(friendsManager.getPendingCount());
-    };
-    const updateUser = () => {
-      setUser(auth.getCurrentUser());
-    };
-    updateCount();
-
-    window.addEventListener('nexly-friends-update', updateCount);
-    window.addEventListener('nexly-profile-update', updateUser);
-    
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('nexly-friends-update', updateCount);
-      window.removeEventListener('nexly-profile-update', updateUser);
-    };
-  }, [location.pathname]);
+  const [profileEditOpen, setProfileEditOpen] = useState(false);
 
   const handleLogout = () => {
     auth.logout();
-    toast.success('Sesión cerrada con éxito');
+    toast.success('Sesión cerrada');
     navigate('/');
+  };
+
+  const handleProfileUpdate = () => {
+    setUser(auth.getCurrentUser());
   };
 
   return (
     <>
-      <motion.nav 
-        initial={{ y: -100 }}
-        animate={{ y: 0 }}
-        className={`sticky top-0 z-50 transition-all duration-300 px-4 py-2 ${
-          scrolled 
-            ? 'bg-black/60 backdrop-blur-2xl border-b border-white/10' 
-            : 'bg-transparent'
-        }`}
-      >
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between h-14">
-            {/* Logo y Buscador */}
-            <div className="flex items-center gap-4 lg:gap-8">
-              <div 
-                className="flex items-center gap-2 cursor-pointer group"
+      <nav className="sticky top-0 z-50 bg-white border-b shadow-sm">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center">
+                <span className="text-white font-bold">N</span>
+              </div>
+              <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                nexly
+              </span>
+            </div>
+
+            <div className="flex items-center gap-6">
+              <button 
                 onClick={() => navigate('/dashboard')}
+                className="flex flex-col items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors"
               >
-                <div className="w-10 h-10 overflow-hidden rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20 group-hover:scale-105 transition-transform duration-300">
-                  <img src="/logo.png" alt="Nexly Logo" className="w-full h-full object-cover" />
-                </div>
-                <span className="text-2xl font-black text-white tracking-tighter group-hover:opacity-80 transition-opacity hidden sm:block">
-                  nexly
-                </span>
-              </div>
-
-              <div className="hidden md:flex items-center relative group">
-                <Search className="absolute left-3 w-4 h-4 text-gray-500 group-focus-within:text-blue-400 transition-colors" />
-                <input 
-                  type="text" 
-                  placeholder="Buscar en Nexly..." 
-                  className="bg-white/5 dark:bg-white/5 border border-white/5 rounded-full py-1.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-white/10 transition-all w-64"
-                />
-              </div>
-
+                <Home className="w-6 h-6" />
+              </button>
+              <button className="flex flex-col items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors">
+                <Users className="w-6 h-6" />
+              </button>
               <button
-                onClick={() => setShowNav(!showNav)}
-                className="p-2 ml-2 rounded-xl bg-white/5 dark:bg-white/5 hover:bg-white/10 dark:bg-white/10 text-gray-400 hover:text-white transition-colors flex md:hidden lg:flex"
-                title={showNav ? "Ocultar menú" : "Mostrar menú"}
+                onClick={() => setMessagesOpen(true)}
+                className="flex flex-col items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors"
               >
-                {showNav ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <MessageCircle className="w-6 h-6" />
+              </button>
+              <button
+                onClick={() => setNotificationsOpen(true)}
+                className="flex flex-col items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors relative"
+              >
+                <Bell className="w-6 h-6" />
+                <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
               </button>
             </div>
 
-            {/* Navegación Central */}
-            <AnimatePresence>
-              {showNav && (
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.95, width: 0 }}
-                  animate={{ opacity: 1, scale: 1, width: 'auto' }}
-                  exit={{ opacity: 0, scale: 0.95, width: 0 }}
-                  className="flex items-center gap-2 sm:gap-4 flex-1 justify-center max-w-sm overflow-hidden"
-                >
-                  <NavIcon 
-                    icon={<Home className="w-5 h-5" />} 
-                    active={window.location.pathname === '/dashboard'}
-                    onClick={() => navigate('/dashboard')}
-                  />
-                  <NavIcon 
-                    icon={<Users className="w-5 h-5" />} 
-                    active={window.location.pathname === '/friends'}
-                    onClick={() => navigate('/friends')}
-                    badge={pendingCount > 0 ? pendingCount : undefined}
-                  />
-                  <NavIcon 
-                    icon={<MessageCircle className="w-5 h-5" />} 
-                    onClick={() => setMessagesOpen(true)}
-                  />
-                  <NavIcon 
-                    icon={<Bell className="w-5 h-5" />} 
-                    onClick={() => setNotificationsOpen(true)}
-                    dot
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Perfil y Opciones */}
             <div className="flex items-center gap-3">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <ProfileButton user={user} />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  sideOffset={8}
-                  className="w-72 p-1.5 rounded-2xl border border-white/10 shadow-2xl bg-[#0a0a0a]/95 backdrop-blur-2xl text-white overflow-hidden duration-300 z-[100]"
-                >
-                  <div className="px-3 py-4 bg-white/5 dark:bg-white/5 rounded-xl mb-1 flex items-center gap-3">
-                    {user?.avatar ? (
-                      <img
-                        src={user.avatar}
-                        alt={user.name}
-                        className="w-12 h-12 rounded-full object-cover ring-2 ring-white/10"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center ring-2 ring-white/10">
-                        <span className="text-white text-xl font-bold">
-                          {user?.name.charAt(0).toUpperCase()}
-                        </span>
+                <DropdownMenuContent align="end" className="w-72 p-0">
+                  {/* Header del menú con info del usuario */}
+                  <div className="px-4 py-3 bg-gradient-to-br from-blue-50 to-indigo-50 border-b">
+                    <div className="flex items-center gap-3">
+                      {user?.avatar ? (
+                        <img
+                          src={user.avatar}
+                          alt={user.name}
+                          className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+                          <span className="text-white text-lg font-bold">
+                            {user?.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900 truncate">{user?.name}</p>
+                        <p className="text-sm text-gray-600">Ver tu perfil</p>
                       </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-extrabold truncate">{user?.name}</p>
-                      <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Cuenta Premium</p>
                     </div>
                   </div>
 
-                  <DropdownMenuSeparator className="bg-white/5 dark:bg-white/5 mx-2" />
-                  
-                  <div className="space-y-0.5 mt-1">
-                    <DropdownMenuItem
+                  {/* Opciones del menú */}
+                  <div className="py-2">
+                    <DropdownMenuItem 
                       onClick={() => navigate('/profile')}
-                      className="rounded-lg cursor-pointer py-3 px-3 hover:bg-white/5 dark:bg-white/5 focus:bg-white/5 dark:bg-white/5 transition-all duration-200"
+                      className="mx-2 rounded-md cursor-pointer hover:bg-blue-50 transition-colors"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center border border-blue-500/20">
-                          <User className="w-4 h-4 text-blue-400" />
+                      <div className="flex items-center gap-3 py-2">
+                        <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center">
+                          <User className="w-5 h-5 text-blue-600" />
                         </div>
-                        <span className="font-semibold text-sm">Mi Perfil</span>
+                        <div>
+                          <p className="font-medium text-gray-900">Ver mi perfil</p>
+                          <p className="text-xs text-gray-500">Ve tu información y personaliza tu perfil</p>
+                        </div>
                       </div>
                     </DropdownMenuItem>
                     
-                    <DropdownMenuItem
-                      onClick={() => navigate('/settings')}
-                      className="rounded-lg cursor-pointer py-3 px-3 hover:bg-white/5 dark:bg-white/5 focus:bg-white/5 dark:bg-white/5 transition-all duration-200"
+                    <DropdownMenuItem 
+                      onClick={() => setProfileEditOpen(true)}
+                      className="mx-2 rounded-md cursor-pointer hover:bg-indigo-50 transition-colors"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-indigo-500/10 rounded-lg flex items-center justify-center border border-indigo-500/20">
-                          <Settings className="w-4 h-4 text-indigo-400" />
+                      <div className="flex items-center gap-3 py-2">
+                        <div className="w-9 h-9 bg-indigo-100 rounded-full flex items-center justify-center">
+                          <Settings className="w-5 h-5 text-indigo-600" />
                         </div>
-                        <span className="font-semibold text-sm">Configuración</span>
+                        <div>
+                          <p className="font-medium text-gray-900">Editar perfil</p>
+                          <p className="text-xs text-gray-500">Actualiza tu foto y datos personales</p>
+                        </div>
                       </div>
                     </DropdownMenuItem>
                   </div>
 
-                  <DropdownMenuSeparator className="bg-white/5 dark:bg-white/5 mx-2" />
+                  <DropdownMenuSeparator className="my-1" />
                   
-                  <DropdownMenuItem
-                    onClick={handleLogout}
-                    className="rounded-lg cursor-pointer py-3 px-3 mt-1 hover:bg-red-500/10 focus:bg-red-500/10 transition-all duration-200 text-red-400"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-red-500/10 rounded-lg flex items-center justify-center border border-red-500/20">
-                        <LogOut className="w-4 h-4" />
+                  {/* Cerrar sesión */}
+                  <div className="py-2">
+                    <DropdownMenuItem 
+                      onClick={handleLogout}
+                      className="mx-2 rounded-md cursor-pointer hover:bg-red-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 py-2">
+                        <div className="w-9 h-9 bg-red-100 rounded-full flex items-center justify-center">
+                          <LogOut className="w-5 h-5 text-red-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">Cerrar sesión</p>
+                          <p className="text-xs text-gray-500">Sal de tu cuenta de Nexly</p>
+                        </div>
                       </div>
-                      <span className="font-bold text-sm">Cerrar sesión</span>
-                    </div>
-                  </DropdownMenuItem>
+                    </DropdownMenuItem>
+                  </div>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </div>
         </div>
-      </motion.nav>
+      </nav>
 
       <NotificationsPanel
         open={notificationsOpen}
         onOpenChange={setNotificationsOpen}
       />
       <MessagesPanel open={messagesOpen} onOpenChange={setMessagesOpen} />
+      <ProfileEditDialog
+        open={profileEditOpen}
+        onOpenChange={setProfileEditOpen}
+        onProfileUpdate={handleProfileUpdate}
+      />
     </>
-  );
-}
-
-function NavIcon({ icon, active, onClick, badge, dot }: { 
-  icon: React.ReactNode, 
-  active?: boolean, 
-  onClick?: () => void,
-  badge?: number,
-  dot?: boolean
-}) {
-  return (
-    <button 
-      onClick={onClick}
-      className={`relative p-2.5 rounded-2xl transition-all duration-300 flex items-center justify-center ${
-        active 
-          ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 scale-110' 
-          : 'bg-white/5 dark:bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 dark:bg-white/10'
-      }`}
-    >
-      {icon}
-      {badge !== undefined && (
-        <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] rounded-full w-5 h-5 flex items-center justify-center font-black border-2 border-[#050505]">
-          {badge}
-        </span>
-      )}
-      {dot && !badge && (
-        <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-blue-400 rounded-full ring-2 ring-[#050505]"></span>
-      )}
-    </button>
   );
 }

@@ -1,4 +1,4 @@
-import { auth, User } from './auth';
+import { User } from './auth';
 import { PostData } from '../components/Post';
 
 export interface UserProfile extends User {
@@ -155,37 +155,12 @@ export const mockUsers: Record<string, UserProfile> = {
 
 // Función para obtener un usuario por ID/email
 export function getUserProfile(userId: string): UserProfile | null {
-  const mockUser = mockUsers[userId];
-  if (mockUser) return mockUser;
-
-  // Check registered users
-  const registeredUser = auth.getUserById(userId);
-  if (registeredUser) {
-    return {
-      id: registeredUser.email,
-      email: registeredUser.email,
-      name: registeredUser.name,
-      avatar: registeredUser.avatar,
-      bio: registeredUser.bio,
-      location: registeredUser.location,
-      website: registeredUser.website,
-      coverPhoto: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200',
-      followers: 0,
-      following: 0,
-      posts: 0,
-      photos: 0,
-      joinedDate: registeredUser.createdAt || 'Registrado recientemente',
-      friends: [],
-      stories: []
-    };
-  }
-
-  return null;
+  return mockUsers[userId] || null;
 }
 
 // Función para obtener posts de un usuario
 export function getUserPosts(userId: string): PostData[] {
-  const user = getUserProfile(userId);
+  const user = mockUsers[userId];
   if (!user) return [];
 
   // Posts simulados basados en el usuario
@@ -325,34 +300,7 @@ export function getUserPosts(userId: string): PostData[] {
   return postsMap[userId] || [];
 }
 
-// Función para obtener todos los usuarios (para búsqueda y sugerencias)
+// Función para obtener todos los usuarios (para búsqueda)
 export function getAllUsers(): UserProfile[] {
-  const registered = auth.getAllRegisteredUsers().map(u => ({
-    id: u.email,
-    email: u.email,
-    name: u.name,
-    avatar: u.avatar,
-    bio: u.bio,
-    location: u.location,
-    website: u.website,
-    coverPhoto: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200',
-    followers: 0,
-    following: 0,
-    posts: 0,
-    photos: 0,
-    joinedDate: u.createdAt || 'Registrado recientemente',
-    friends: [],
-    stories: []
-  }));
-
-  const mockOnes = Object.values(mockUsers);
-  const combined = [...mockOnes];
-  
-  registered.forEach(reg => {
-    if (!combined.find(m => m.email === reg.email)) {
-      combined.push(reg);
-    }
-  });
-
-  return combined;
+  return Object.values(mockUsers);
 }
