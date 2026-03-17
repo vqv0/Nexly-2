@@ -74,7 +74,7 @@ export default function AdminLogin() {
         transition={{ duration: 0.8 }}
         className="w-full max-w-md z-10"
       >
-        <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-2xl relative overflow-hidden">
+        <Card className="border-white/10 bg-white/5 dark:bg-white/5 backdrop-blur-2xl shadow-2xl relative overflow-hidden">
           {/* Subtle security line */}
           <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-purple-500/50 to-transparent" />
           
@@ -116,7 +116,7 @@ export default function AdminLogin() {
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       placeholder="ADMIN_ID"
-                      className="bg-white/5 border-white/10 text-white placeholder:text-gray-700 pl-10 h-12 focus:ring-purple-500/30 focus:border-purple-500/50 transition-all rounded-xl font-mono uppercase tracking-widest text-sm"
+                      className="bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-700 pl-10 h-12 focus:ring-purple-500/30 focus:border-purple-500/50 transition-all rounded-xl font-mono uppercase tracking-widest text-sm"
                     />
                   </div>
                 </div>
@@ -131,7 +131,7 @@ export default function AdminLogin() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="bg-white/5 border-white/10 text-white placeholder:text-gray-700 pl-10 h-12 focus:ring-purple-500/30 focus:border-purple-500/50 transition-all rounded-xl"
+                      className="bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-700 pl-10 h-12 focus:ring-purple-500/30 focus:border-purple-500/50 transition-all rounded-xl"
                     />
                   </div>
                 </div>

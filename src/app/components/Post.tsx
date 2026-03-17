@@ -6,6 +6,7 @@ import { Input } from './ui/input';
 import { Heart, MessageCircle, Share2, MoreHorizontal, Send, Pencil, Trash2, Check, X, AlertOctagon } from 'lucide-react';
 import { auth } from '../utils/auth';
 import { postsManager } from '../utils/postsManager';
+import { getUserProfile } from '../utils/mockData';
 import { toast } from 'sonner';
 import {
   DropdownMenu,
@@ -41,7 +42,27 @@ export interface PostData {
   sharedTimestamp?: string;
 }
 
-// Shared posts are now handled directly as new records in Firebase via postsManager.sharePost
+const SHARED_POSTS_KEY = 'nexly_shared_posts';
+
+export function getSharedPosts(userId?: string): PostData[] {
+  try {
+    const data = localStorage.getItem(SHARED_POSTS_KEY);
+    const all: PostData[] = data ? JSON.parse(data) : [];
+    if (userId) {
+      return all.filter(p => p.sharedBy === userId);
+    }
+    return all;
+  } catch {
+    return [];
+  }
+}
+
+function saveSharedPost(post: PostData) {
+  const shared = getSharedPosts();
+  shared.unshift(post);
+  localStorage.setItem(SHARED_POSTS_KEY, JSON.stringify(shared));
+  window.dispatchEvent(new CustomEvent('nexly-shared-update'));
+}
 
 interface PostProps {
   post: PostData;
@@ -65,61 +86,35 @@ export function Post({ post, onUpdate }: PostProps) {
   const currentUser = auth.getCurrentUser();
 
   useEffect(() => {
-    // Listen to likes and comments specifically for this post
-    const unsubLikes = postsManager.listenToPostLikes(post.id, (likesMap) => {
-      setLikeCount(Object.keys(likesMap).length);
-      if (currentUser && likesMap[currentUser.id]) {
-        setLiked(true);
-      } else {
-        setLiked(false);
-      }
-    });
+    setPostContent(postsManager.getEditedContent(post.id) || post.content);
+  }, [post.content, post.id]);
 
-    const unsubComments = postsManager.listenToPostComments(post.id, (comms) => {
-      setComments(comms);
-    });
-
-    return () => {
-      unsubLikes();
-      unsubComments();
-    };
-  }, [post.id, currentUser]);
-
-  const handleLike = async () => {
-    // Optimistic UI update
-    const previousState = liked;
+  const handleLike = () => {
     setLiked(!liked);
-    setLikeCount(!liked ? likeCount + 1 : likeCount - 1);
-    
-    const res = await postsManager.toggleLike(post.id);
-    if (!res.success) {
-      // Revert if failed
-      setLiked(previousState);
-      setLikeCount(previousState ? likeCount + 1 : likeCount - 1);
-      toast.error(res.error || 'Error al actualizar Me gusta');
-    }
+    setLikeCount(liked ? likeCount - 1 : likeCount + 1);
   };
 
-  const handleComment = async () => {
+  const handleComment = () => {
     if (!commentText.trim() || !currentUser) return;
 
-    const res = await postsManager.addComment(post.id, commentText);
-    if (res.success) {
-      setCommentText('');
-      toast.success('Comentario publicado');
-      onUpdate?.();
-    } else {
-      toast.error(res.error || 'Error al comentar');
-    }
+    const newComment: Comment = {
+      id: Date.now().toString(),
+      author: currentUser.name,
+      authorId: currentUser.id,
+      avatar: currentUser.avatar,
+      content: commentText,
+      timestamp: 'Ahora',
+    };
+
+    setComments([...comments, newComment]);
+    setCommentText('');
+    toast.success('Comentario publicado');
+    onUpdate?.();
   };
 
-  const handleDeleteComment = async (commentId: string) => {
-    const res = await postsManager.deleteComment(post.id, commentId);
-    if (res.success) {
-      toast.success('Comentario eliminado');
-    } else {
-      toast.error(res.error || 'Error al eliminar');
-    }
+  const handleDeleteComment = (commentId: string) => {
+    setComments(comments.filter((c: Comment) => c.id !== commentId));
+    toast.success('Comentario eliminado');
   };
 
   const handleStartEdit = (comment: Comment) => {
@@ -127,16 +122,14 @@ export function Post({ post, onUpdate }: PostProps) {
     setEditingText(comment.content);
   };
 
-  const handleSaveEdit = async (commentId: string) => {
+  const handleSaveEdit = (commentId: string) => {
     if (!editingText.trim()) return;
-    const res = await postsManager.editComment(post.id, commentId, editingText);
-    if (res.success) {
-      setEditingCommentId(null);
-      setEditingText('');
-      toast.success('Comentario editado');
-    } else {
-      toast.error(res.error || 'Error al editar');
-    }
+    setComments(comments.map((c: Comment) =>
+      c.id === commentId ? { ...c, content: editingText } : c
+    ));
+    setEditingCommentId(null);
+    setEditingText('');
+    toast.success('Comentario editado');
   };
 
   const handleCancelEdit = () => {
@@ -144,17 +137,25 @@ export function Post({ post, onUpdate }: PostProps) {
     setEditingText('');
   };
 
-  const handleShare = async () => {
+  const handleShare = () => {
     if (!currentUser) return;
 
-    toast.info('Compartiendo publicación...');
-    const result = await postsManager.sharePost(post);
-    if (result.success) {
-      toast.success('Publicación compartida en tu perfil');
-      onUpdate?.();
-    } else {
-      toast.error(result.error || 'Error al compartir');
-    }
+    const sharedPost: PostData = {
+      ...post,
+      id: `shared_${Date.now()}`,
+      isShared: true,
+      sharedBy: currentUser.id,
+      sharedByAvatar: currentUser.avatar,
+      sharedTimestamp: 'Justo ahora',
+      comments: [],
+      likes: 0,
+      shares: 0,
+    };
+
+    saveSharedPost(sharedPost);
+    setShareCount(shareCount + 1);
+    toast.success('Publicación compartida en tu perfil');
+    onUpdate?.();
   };
 
   const handleProfileClick = (userId?: string) => {
@@ -163,38 +164,32 @@ export function Post({ post, onUpdate }: PostProps) {
     }
   };
 
-  const handleDeletePost = async () => {
+  const handleDeletePost = () => {
     if (window.confirm('¿Estás seguro de que quieres eliminar esta publicación?')) {
       setIsDeleting(true);
       toast.success('Eliminando publicación...');
       
-      const res = await postsManager.deletePost(post.id);
-      if (res.success) {
+      setTimeout(() => {
+        postsManager.deletePost(post.id);
         setIsDeleted(true);
-      } else {
-        setIsDeleting(false);
-        toast.error(res.error || 'Error al eliminar');
-      }
+        window.location.reload();
+      }, 500);
     }
   };
 
-  const handleEditPost = async () => {
+  const handleEditPost = () => {
     if (!postContent.trim()) return;
-    const res = await postsManager.editPost(post.id, postContent);
-    if (res.success) {
-      setIsEditingPost(false);
-      toast.success('Publicación actualizada');
-      onUpdate?.();
-    } else {
-      toast.error(res.error || 'Error al actualizar');
-    }
+    postsManager.editPost(post.id, postContent);
+    setIsEditingPost(false);
+    toast.success('Publicación actualizada');
+    onUpdate?.();
   };
 
-  const handleReportPost = async () => {
+  const handleReportPost = () => {
     const reason = window.prompt('¿Por qué quieres reportar esta publicación?');
     if (reason) {
-      await postsManager.reportPost(post, reason);
-      // El toast ya lo hace postsManager internamente o podemos confiar en él
+      postsManager.reportPost(post, reason, currentUser?.id);
+      toast.success('Reporte enviado');
     }
   };
 
@@ -202,308 +197,272 @@ export function Post({ post, onUpdate }: PostProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 1, scale: 1 }}
-      animate={isDeleting ? { opacity: 0, scale: 0.95, height: 0, marginTop: 0, marginBottom: 0, padding: 0 } : { opacity: 1, scale: 1 }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
-      className="mb-6"
+      initial={{ opacity: 0, y: 30 }}
+      animate={isDeleting ? { opacity: 0, scale: 0.9, filter: 'blur(10px)' } : { opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+      className="mb-8"
     >
-      <Card className="border-white/10 bg-white/5 backdrop-blur-xl shadow-2xl overflow-hidden rounded-2xl">
-      <div className="p-4">
-        {/* Shared by header */}
-        {post.isShared && (
-          <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-blue-400 mb-4 pb-3 border-b border-white/5">
-            <Share2 className="w-3.5 h-3.5" />
-            <span>Compartido por ti {post.sharedTimestamp && `· ${post.sharedTimestamp}`}</span>
-          </div>
-        )}
+      <div className="glass-effect rounded-[32px] overflow-hidden shadow-2xl smooth-transition group/post border-white/[0.03]">
+        <div className="p-6">
+          {post.isShared && (
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-black text-blue-400/80 mb-6 pb-4 border-b border-white/[0.05]">
+              <Share2 className="w-3.5 h-3.5" />
+              <span>Compartido por ti {post.sharedTimestamp && `· ${post.sharedTimestamp}`}</span>
+            </div>
+          )}
 
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex gap-3">
-            <button
-              onClick={() => handleProfileClick(post.authorId)}
-              className="flex-shrink-0 hover:scale-105 transition-transform"
-            >
-              {post.avatar ? (
-                <img
-                  src={post.avatar}
-                  alt={post.author}
-                  className="w-11 h-11 rounded-full object-cover ring-2 ring-white/5 shadow-inner"
-                />
-              ) : (
-                <div className="w-11 h-11 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center ring-2 ring-white/5 shadow-inner">
-                  <span className="text-white font-black text-lg uppercase tracking-tighter">
-                    {post.author.charAt(0)}
-                  </span>
-                </div>
-              )}
-            </button>
-            <div className="flex flex-col justify-center">
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex gap-4">
               <button
                 onClick={() => handleProfileClick(post.authorId)}
-                className="font-bold text-white hover:text-blue-400 transition-colors text-left"
+                className="flex-shrink-0 hover:scale-105 transition-transform"
               >
-                {post.author}
-              </button>
-              <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">{post.timestamp}</p>
-            </div>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="text-gray-500 hover:text-white hover:bg-white/5 rounded-full">
-                <MoreHorizontal className="w-5 h-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-[#0a0a0a]/95 backdrop-blur-3xl border-white/10 text-white rounded-xl shadow-2xl min-w-[160px]">
-              {currentUser && post.authorId === currentUser.id ? (
-                <>
-                  <DropdownMenuItem 
-                    onSelect={() => setIsEditingPost(true)}
-                    className="gap-2 cursor-pointer font-bold text-xs hover:bg-white/5 py-2.5"
-                  >
-                    <Pencil className="w-4 h-4 text-blue-400" /> Editar publicación
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onSelect={handleDeletePost}
-                    className="gap-2 cursor-pointer font-bold text-xs text-red-500 hover:bg-red-500/10 py-2.5"
-                  >
-                    <Trash2 className="w-4 h-4" /> Eliminar publicación
-                  </DropdownMenuItem>
-                </>
-              ) : (
-                <>
-                  <DropdownMenuItem 
-                    onSelect={() => navigate('/messages')}
-                    className="gap-2 cursor-pointer font-bold text-xs hover:bg-white/5 py-2.5"
-                  >
-                    <Send className="w-4 h-4 text-blue-400" /> Enviar mensaje
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onSelect={handleReportPost}
-                    className="gap-2 cursor-pointer font-bold text-xs text-orange-500 hover:bg-orange-500/10 py-2.5"
-                  >
-                    <AlertOctagon className="w-4 h-4" /> Reportar publicación
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {isEditingPost ? (
-          <div className="space-y-3 mb-4">
-            <textarea
-              value={postContent}
-              onChange={(e) => setPostContent(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 min-h-[100px] resize-none"
-              autoFocus
-            />
-            <div className="flex justify-end gap-2">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => {
-                  setIsEditingPost(false);
-                  setPostContent(postsManager.getEditedContent(post.id) || post.content);
-                }}
-                className="text-gray-400 hover:text-white"
-              >
-                Cancelar
-              </Button>
-              <Button 
-                size="sm" 
-                onClick={handleEditPost}
-                className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4"
-              >
-                Guardar cambios
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <p className="text-gray-200 leading-relaxed mb-4">{postContent}</p>
-        )}
-
-        {post.image && (
-          <div className="relative group rounded-xl overflow-hidden mb-4 border border-white/5 shadow-inner">
-            <img
-              src={post.image}
-              alt="Post content"
-              className="w-full object-cover max-h-[500px] transition-transform duration-700 group-hover:scale-[1.02]"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
-          </div>
-        )}
-
-        <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-3 pt-3 border-t border-white/5">
-          <div className="flex items-center gap-1.5">
-            <div className="flex -space-x-1.5">
-              <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center ring-2 ring-[#050505]">
-                <Heart className="w-2 h-2 text-white fill-current" />
-              </div>
-            </div>
-            <span>{likeCount} Me gusta</span>
-          </div>
-          <div className="flex gap-4">
-            <button
-              onClick={() => setShowComments(!showComments)}
-              className="hover:text-blue-400 transition-colors"
-            >
-              {comments.length} comentarios
-            </button>
-            <span>{post.shares || 0} compartidos</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 pt-1">
-          <ActionButton 
-            icon={<Heart className={`w-5 h-5 ${liked ? 'fill-current' : ''}`} />} 
-            label="Me gusta" 
-            active={liked} 
-            activeClass="text-red-500 hover:bg-red-500/10"
-            onClick={handleLike} 
-          />
-          <ActionButton 
-            icon={<MessageCircle className="w-5 h-5" />} 
-            label="Comentar" 
-            onClick={() => setShowComments(!showComments)} 
-          />
-          <ActionButton 
-            icon={<Share2 className="w-5 h-5" />} 
-            label="Compartir" 
-            onClick={handleShare} 
-          />
-        </div>
-
-        {/* Comments Section */}
-        <AnimatePresence>
-          {showComments && (
-            <motion.div 
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden"
-            >
-              <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
-                {/* Comment Input */}
-                <div className="flex gap-3">
-                  {currentUser?.avatar ? (
+                {(() => {
+                  const userProfile = post.authorId ? getUserProfile(post.authorId) : null;
+                  const displayAvatar = userProfile?.avatar || post.avatar;
+                  
+                  return displayAvatar ? (
                     <img
-                      src={currentUser.avatar}
-                      alt={currentUser.name}
-                      className="w-8 h-8 rounded-full object-cover ring-1 ring-white/10"
+                      src={displayAvatar}
+                      alt={post.author}
+                      className="w-12 h-12 rounded-2xl object-cover ring-2 ring-white/5 shadow-xl"
                     />
                   ) : (
-                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center ring-1 ring-white/10 text-white font-bold text-xs shadow-lg">
-                      {currentUser?.name.charAt(0)}
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center ring-2 ring-white/5 text-white font-black text-xl">
+                      {post.author.charAt(0)}
                     </div>
-                  )}
-                  <div className="flex-1 flex gap-2">
-                    <Input
-                      placeholder="Comentar algo..."
-                      value={commentText}
-                      onChange={(e) => setCommentText(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleComment()}
-                      className="flex-1 bg-white/5 border-white/10 text-white text-xs h-9 rounded-xl focus:ring-blue-500/20"
-                    />
-                    <Button size="icon" onClick={handleComment} className="w-9 h-9 bg-blue-600 hover:bg-blue-500 rounded-xl">
-                      <Send className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Comments List */}
-                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin">
-                  {comments.map((comment, index) => (
-                    <motion.div 
-                      key={comment.id} 
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="flex gap-3"
+                  );
+                })()}
+              </button>
+              <div className="flex flex-col justify-center">
+                <button
+                  onClick={() => handleProfileClick(post.authorId)}
+                  className="font-black text-white hover:text-blue-400 transition-colors text-left tracking-tight"
+                >
+                  {post.author}
+                </button>
+                <p className="text-[9px] text-white/30 font-black uppercase tracking-[0.2em]">{post.timestamp}</p>
+              </div>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="text-white/20 hover:text-white hover:bg-white/5 dark:bg-white/5 rounded-full w-10 h-10">
+                  <MoreHorizontal className="w-5 h-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="bg-[#0a0a0a]/95 backdrop-blur-3xl border-white/10 text-white rounded-2xl shadow-2xl min-w-[180px]">
+                {currentUser && post.authorId === currentUser.id ? (
+                  <>
+                    <DropdownMenuItem 
+                      onSelect={() => setIsEditingPost(true)}
+                      className="gap-3 cursor-pointer p-3 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 dark:bg-white/5"
                     >
-                      <button
-                        onClick={() => handleProfileClick(comment.authorId)}
-                        className="flex-shrink-0 hover:scale-110 transition-transform"
-                      >
-                        {comment.avatar ? (
-                          <img
-                            src={comment.avatar}
-                            alt={comment.author}
-                            className="w-8 h-8 rounded-full object-cover ring-1 ring-white/5"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center ring-1 ring-white/5 text-white font-bold text-xs">
-                            {comment.author.charAt(0)}
-                          </div>
-                        )}
-                      </button>
-                      <div className="flex-1 bg-white/5 hover:bg-white-[8%] transition-colors rounded-2xl px-3.5 py-2.5 relative group/comment border border-white/5">
-                        <div className="flex items-center justify-between mb-0.5">
-                          <button
-                            onClick={() => handleProfileClick(comment.authorId)}
-                            className="font-bold text-xs text-white hover:text-blue-400"
-                          >
-                            {comment.author}
-                          </button>
-                          
-                          {currentUser && comment.authorId === currentUser.id && editingCommentId !== comment.id && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="w-6 h-6 p-0 hover:bg-white/10 rounded-full">
-                                  <MoreHorizontal className="w-3.5 h-3.5 text-gray-500" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="bg-[#0a0a0a]/95 backdrop-blur-3xl border-white/10 text-white rounded-xl shadow-2xl">
-                                <DropdownMenuItem onSelect={() => handleStartEdit(comment)} className="gap-2 cursor-pointer text-xs font-bold hover:bg-white/5">
-                                  <Pencil className="w-3 h-3" /> Editar
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onSelect={() => handleDeleteComment(comment.id)}
-                                  className="gap-2 cursor-pointer text-xs font-bold text-red-500 hover:bg-red-500/10 focus:text-red-500"
-                                >
-                                  <Trash2 className="w-3 h-3" /> Eliminar
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
-                        </div>
+                      <Pencil className="w-4 h-4 text-blue-400" /> Editar Post
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onSelect={handleDeletePost}
+                      className="gap-3 cursor-pointer p-3 text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10"
+                    >
+                      <Trash2 className="w-4 h-4" /> Eliminar Post
+                    </DropdownMenuItem>
+                  </>
+                ) : (
+                  <>
+                    <DropdownMenuItem 
+                      onSelect={() => navigate('/messages')}
+                      className="gap-3 cursor-pointer p-3 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 dark:bg-white/5"
+                    >
+                      <Send className="w-4 h-4 text-blue-400" /> Mensaje
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onSelect={handleReportPost}
+                      className="gap-3 cursor-pointer p-3 text-[10px] font-black uppercase tracking-widest text-orange-500 hover:bg-orange-500/10"
+                    >
+                      <AlertOctagon className="w-4 h-4" /> Reportar
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
 
-                        {editingCommentId === comment.id ? (
-                          <div className="flex gap-2 mt-2">
-                            <Input
-                              value={editingText}
-                              onChange={(e) => setEditingText(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleSaveEdit(comment.id);
-                                if (e.key === 'Escape') handleCancelEdit();
-                              }}
-                              className="flex-1 h-8 text-xs bg-black/40 border-white/10 rounded-xl"
-                              autoFocus
-                            />
-                            <div className="flex gap-1">
-                              <Button size="icon" className="w-8 h-8 bg-blue-600 hover:bg-blue-500 rounded-lg" onClick={() => handleSaveEdit(comment.id)}>
-                                <Check className="w-3.5 h-3.5" />
-                              </Button>
-                              <Button size="icon" variant="ghost" className="w-8 h-8 text-gray-400 hover:text-white rounded-lg" onClick={handleCancelEdit}>
-                                <X className="w-3.5 h-3.5" />
+          {isEditingPost ? (
+            <div className="space-y-4 mb-6">
+              <textarea
+                value={postContent}
+                onChange={(e) => setPostContent(e.target.value)}
+                className="w-full bg-white/5 dark:bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-md font-medium focus:outline-none focus:ring-4 focus:ring-blue-500/10 min-h-[120px] resize-none"
+                autoFocus
+              />
+              <div className="flex justify-end gap-3">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setIsEditingPost(false)}
+                  className="text-white/40 hover:text-white font-bold uppercase tracking-widest text-[10px]"
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  size="sm" 
+                  onClick={handleEditPost}
+                  className="bg-blue-600 hover:bg-blue-500 text-white font-black px-6 rounded-xl text-[10px] uppercase tracking-widest"
+                >
+                  Guardar
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-white/90 leading-relaxed mb-6 font-medium text-lg tracking-tight">{postContent}</p>
+          )}
+
+          {post.image && (
+            <div className="relative group rounded-3xl overflow-hidden mb-6 border border-white/5 shadow-2xl">
+              <img
+                src={post.image}
+                alt="Post content"
+                className="w-full object-cover max-h-[600px] transition-transform duration-1000 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+          )}
+
+          <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-[0.2em] text-white/30 mb-5 pt-5 border-t border-white/[0.05]">
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/20">
+                <Heart className="w-2.5 h-2.5 text-white fill-current" />
+              </div>
+              <span className="text-white/60">{likeCount} Likes</span>
+            </div>
+            <div className="flex gap-6">
+              <button onClick={() => setShowComments(!showComments)} className="hover:text-blue-400 transition-colors">
+                {comments.length} Comentarios
+              </button>
+              <span>{shareCount} Shares</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 pt-1">
+            <ActionButton 
+              icon={<Heart className={`w-5 h-5 ${liked ? 'fill-red-500 text-red-500' : 'text-white/40 group-hover:text-white'}`} />} 
+              label="Like" 
+              active={liked} 
+              activeClass="text-red-500 bg-red-500/5 shadow-inner"
+              onClick={handleLike} 
+            />
+            <ActionButton 
+              icon={<MessageCircle className="w-5 h-5 text-white/40 group-hover:text-white" />} 
+              label="Comment" 
+              onClick={() => setShowComments(!showComments)} 
+            />
+            <ActionButton 
+              icon={<Share2 className="w-5 h-5 text-white/40 group-hover:text-white" />} 
+              label="Share" 
+              onClick={handleShare} 
+            />
+          </div>
+
+          <AnimatePresence>
+            {showComments && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="mt-8 pt-8 border-t border-white/[0.05] space-y-6">
+                  <div className="flex gap-4">
+                    <img
+                      src={currentUser?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
+                      alt="Me"
+                      className="w-10 h-10 rounded-2xl object-cover border border-white/10 shadow-lg"
+                    />
+                    <div className="flex-1 flex gap-3">
+                      <Input
+                        placeholder="Escribe algo increíble..."
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleComment()}
+                        className="flex-1 bg-white/5 dark:bg-white/5 border-white/10 text-white text-sm h-11 rounded-2xl focus:ring-blue-500/10 placeholder:text-white/20"
+                      />
+                      <Button size="icon" onClick={handleComment} className="w-11 h-11 bg-blue-600 hover:bg-blue-500 rounded-2xl shadow-lg shadow-blue-600/20">
+                        <Send className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-6 max-h-[400px] overflow-y-auto pr-2 scrollbar-hide">
+                    {comments.map((comment, index) => {
+                      // Dynamically fetch the latest user profile to ensure avatar is always up-to-date
+                      const userProfile = comment.authorId ? getUserProfile(comment.authorId) : null;
+                      const displayAvatar = userProfile?.avatar || comment.avatar || 'https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=100';
+                      
+                      return (
+                      <motion.div 
+                        key={comment.id} 
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="flex gap-4"
+                      >
+                        <button onClick={() => handleProfileClick(comment.authorId)} className="flex-shrink-0 hover:scale-110 transition-transform">
+                          <img
+                            src={displayAvatar}
+                            alt={comment.author}
+                            className="w-9 h-9 rounded-2xl object-cover ring-1 ring-white/10 shadow-lg"
+                          />
+                        </button>
+                        <div className="flex-1 bg-white/5 dark:bg-white/5 hover:bg-white/[0.07] transition-colors rounded-3xl p-4 border border-white/10 relative group/comment shadow-sm">
+                          <div className="flex items-center justify-between mb-1">
+                            <button onClick={() => handleProfileClick(comment.authorId)} className="font-black text-[11px] text-white hover:text-blue-400 uppercase tracking-wider">
+                              {comment.author}
+                            </button>
+                            {currentUser && comment.authorId === currentUser.id && editingCommentId !== comment.id && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button className="opacity-0 group-hover/comment:opacity-100 transition-opacity p-1 hover:bg-white/10 dark:bg-white/10 rounded-full">
+                                    <MoreHorizontal className="w-3.5 h-3.5 text-white/30" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="bg-[#0a0a0a]/95 backdrop-blur-3xl border-white/10 text-white rounded-2xl shadow-2xl">
+                                  <DropdownMenuItem onSelect={() => handleStartEdit(comment)} className="gap-3 cursor-pointer p-3 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 dark:bg-white/5">
+                                    <Pencil className="w-3.5 h-3.5" /> Editar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onSelect={() => handleDeleteComment(comment.id)} className="gap-3 cursor-pointer p-3 text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10">
+                                    <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </div>
+                          {editingCommentId === comment.id ? (
+                            <div className="flex gap-2">
+                              <Input
+                                value={editingText}
+                                onChange={(e) => setEditingText(e.target.value)}
+                                className="flex-1 h-9 text-xs bg-black/40 border-white/10 rounded-xl"
+                                autoFocus
+                              />
+                              <Button size="icon" className="w-9 h-9 bg-blue-600 rounded-xl" onClick={() => handleSaveEdit(comment.id)}>
+                                <Check className="w-4 h-4" />
                               </Button>
                             </div>
-                          </div>
-                        ) : (
-                          <>
-                            <p className="text-xs text-gray-300 leading-normal">{comment.content}</p>
-                            <p className="text-[9px] text-gray-600 font-bold uppercase tracking-widest mt-2">{comment.timestamp}</p>
-                          </>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))}
+                          ) : (
+                            <>
+                              <p className="text-sm text-white/70 leading-relaxed font-medium">{comment.content}</p>
+                              <p className="text-[8px] text-white/20 font-black uppercase tracking-widest mt-2">{comment.timestamp}</p>
+                            </>
+                          )}
+                        </div>
+                      </motion.div>
+                    )})}
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
-    </Card>
     </motion.div>
   );
 }
@@ -519,14 +478,14 @@ function ActionButton({ icon, label, active, activeClass, onClick }: {
     <Button
       variant="ghost"
       size="sm"
-      className={`flex-1 gap-2.5 rounded-xl transition-all duration-300 font-bold text-xs h-10 ${
+      className={`flex-1 gap-3 rounded-[20px] transition-all duration-300 font-black text-[10px] uppercase tracking-[0.1em] h-12 shadow-sm ${
         active 
-          ? (activeClass || 'text-blue-500 bg-blue-500/10') 
-          : 'text-gray-400 hover:text-white hover:bg-white/5'
-      }`}
+          ? (activeClass || 'text-blue-500 bg-blue-500/10 shadow-inner') 
+          : 'text-white/40 hover:text-white hover:bg-white/5 dark:bg-white/5 active:scale-95'
+      } group`}
       onClick={onClick}
     >
-      <span className={`${active ? 'scale-110' : 'group-hover:scale-110'} transition-transform`}>{icon}</span>
+      {icon}
       <span className="hidden sm:inline">{label}</span>
     </Button>
   );

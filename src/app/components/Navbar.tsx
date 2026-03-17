@@ -2,7 +2,7 @@ import { useNavigate, useLocation } from 'react-router';
 import { useState, useEffect, forwardRef } from 'react';
 import { auth } from '../utils/auth';
 import { friendsManager } from '../utils/friendsManager';
-import { Home, Users, Bell, MessageCircle, LogOut, User, Settings, Search } from 'lucide-react';
+import { Home, Users, Bell, MessageCircle, LogOut, User, Settings, Search, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { NotificationsPanel } from './NotificationsPanel';
 import { MessagesPanel } from './MessagesPanel';
@@ -27,7 +27,7 @@ const ProfileButton = forwardRef<
     ref={ref}
     type="button"
     {...props}
-    className="flex items-center gap-2 hover:bg-white/10 rounded-xl px-2.5 py-1.5 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 border border-transparent hover:border-white/10"
+    className="flex items-center gap-2 hover:bg-white/10 dark:bg-white/10 rounded-xl px-2.5 py-1.5 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 border border-transparent hover:border-white/10"
   >
     {user?.avatar ? (
       <img
@@ -56,6 +56,7 @@ export function Navbar() {
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [scrolled, setScrolled] = useState(false);
+  const [showNav, setShowNav] = useState(true);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -85,8 +86,8 @@ export function Navbar() {
     };
   }, [location.pathname]);
 
-  const handleLogout = async () => {
-    await auth.logout();
+  const handleLogout = () => {
+    auth.logout();
     toast.success('Sesión cerrada con éxito');
     navigate('/');
   };
@@ -123,34 +124,51 @@ export function Navbar() {
                 <input 
                   type="text" 
                   placeholder="Buscar en Nexly..." 
-                  className="bg-white/5 border border-white/5 rounded-full py-1.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-white/10 transition-all w-64"
+                  className="bg-white/5 dark:bg-white/5 border border-white/5 rounded-full py-1.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-white/10 transition-all w-64"
                 />
               </div>
+
+              <button
+                onClick={() => setShowNav(!showNav)}
+                className="p-2 ml-2 rounded-xl bg-white/5 dark:bg-white/5 hover:bg-white/10 dark:bg-white/10 text-gray-400 hover:text-white transition-colors flex md:hidden lg:flex"
+                title={showNav ? "Ocultar menú" : "Mostrar menú"}
+              >
+                {showNav ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
 
             {/* Navegación Central */}
-            <div className="flex items-center gap-2 sm:gap-4 flex-1 justify-center max-w-sm">
-              <NavIcon 
-                icon={<Home className="w-5 h-5" />} 
-                active={window.location.pathname === '/dashboard'}
-                onClick={() => navigate('/dashboard')}
-              />
-              <NavIcon 
-                icon={<Users className="w-5 h-5" />} 
-                active={window.location.pathname === '/friends'}
-                onClick={() => navigate('/friends')}
-                badge={pendingCount > 0 ? pendingCount : undefined}
-              />
-              <NavIcon 
-                icon={<MessageCircle className="w-5 h-5" />} 
-                onClick={() => setMessagesOpen(true)}
-              />
-              <NavIcon 
-                icon={<Bell className="w-5 h-5" />} 
-                onClick={() => setNotificationsOpen(true)}
-                dot
-              />
-            </div>
+            <AnimatePresence>
+              {showNav && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95, width: 0 }}
+                  animate={{ opacity: 1, scale: 1, width: 'auto' }}
+                  exit={{ opacity: 0, scale: 0.95, width: 0 }}
+                  className="flex items-center gap-2 sm:gap-4 flex-1 justify-center max-w-sm overflow-hidden"
+                >
+                  <NavIcon 
+                    icon={<Home className="w-5 h-5" />} 
+                    active={window.location.pathname === '/dashboard'}
+                    onClick={() => navigate('/dashboard')}
+                  />
+                  <NavIcon 
+                    icon={<Users className="w-5 h-5" />} 
+                    active={window.location.pathname === '/friends'}
+                    onClick={() => navigate('/friends')}
+                    badge={pendingCount > 0 ? pendingCount : undefined}
+                  />
+                  <NavIcon 
+                    icon={<MessageCircle className="w-5 h-5" />} 
+                    onClick={() => setMessagesOpen(true)}
+                  />
+                  <NavIcon 
+                    icon={<Bell className="w-5 h-5" />} 
+                    onClick={() => setNotificationsOpen(true)}
+                    dot
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Perfil y Opciones */}
             <div className="flex items-center gap-3">
@@ -163,7 +181,7 @@ export function Navbar() {
                   sideOffset={8}
                   className="w-72 p-1.5 rounded-2xl border border-white/10 shadow-2xl bg-[#0a0a0a]/95 backdrop-blur-2xl text-white overflow-hidden duration-300 z-[100]"
                 >
-                  <div className="px-3 py-4 bg-white/5 rounded-xl mb-1 flex items-center gap-3">
+                  <div className="px-3 py-4 bg-white/5 dark:bg-white/5 rounded-xl mb-1 flex items-center gap-3">
                     {user?.avatar ? (
                       <img
                         src={user.avatar}
@@ -183,12 +201,12 @@ export function Navbar() {
                     </div>
                   </div>
 
-                  <DropdownMenuSeparator className="bg-white/5 mx-2" />
+                  <DropdownMenuSeparator className="bg-white/5 dark:bg-white/5 mx-2" />
                   
                   <div className="space-y-0.5 mt-1">
                     <DropdownMenuItem
                       onClick={() => navigate('/profile')}
-                      className="rounded-lg cursor-pointer py-3 px-3 hover:bg-white/5 focus:bg-white/5 transition-all duration-200"
+                      className="rounded-lg cursor-pointer py-3 px-3 hover:bg-white/5 dark:bg-white/5 focus:bg-white/5 dark:bg-white/5 transition-all duration-200"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center border border-blue-500/20">
@@ -200,7 +218,7 @@ export function Navbar() {
                     
                     <DropdownMenuItem
                       onClick={() => navigate('/settings')}
-                      className="rounded-lg cursor-pointer py-3 px-3 hover:bg-white/5 focus:bg-white/5 transition-all duration-200"
+                      className="rounded-lg cursor-pointer py-3 px-3 hover:bg-white/5 dark:bg-white/5 focus:bg-white/5 dark:bg-white/5 transition-all duration-200"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 bg-indigo-500/10 rounded-lg flex items-center justify-center border border-indigo-500/20">
@@ -211,7 +229,7 @@ export function Navbar() {
                     </DropdownMenuItem>
                   </div>
 
-                  <DropdownMenuSeparator className="bg-white/5 mx-2" />
+                  <DropdownMenuSeparator className="bg-white/5 dark:bg-white/5 mx-2" />
                   
                   <DropdownMenuItem
                     onClick={handleLogout}
@@ -253,7 +271,7 @@ function NavIcon({ icon, active, onClick, badge, dot }: {
       className={`relative p-2.5 rounded-2xl transition-all duration-300 flex items-center justify-center ${
         active 
           ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 scale-110' 
-          : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+          : 'bg-white/5 dark:bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 dark:bg-white/10'
       }`}
     >
       {icon}

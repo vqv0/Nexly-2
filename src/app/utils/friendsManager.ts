@@ -1,6 +1,5 @@
-import { auth, db } from './firebase';
-import { ref, set, get, update, remove, onValue, push } from 'firebase/database';
-import { UserProfile } from './mockData';
+import { getAllUsers, mockUsers, UserProfile } from './mockData';
+import { auth } from './auth';
 
 export interface FriendRequest {
   id: string;
@@ -10,205 +9,257 @@ export interface FriendRequest {
   timestamp: string;
 }
 
-// Evento custom para sincronizar estado entre componentes UI si es necesario
-// aunque con Firebase onValue ya se actualiza solo, lo dejamos por compatibilidad
+const FRIEND_REQUESTS_KEY = 'nexly_friend_requests';
+const FRIENDS_KEY = 'nexly_friends';
+
+// Evento custom para sincronizar estado entre componentes
 export function emitFriendsUpdate() {
   window.dispatchEvent(new CustomEvent('nexly-friends-update'));
 }
 
+function getFriendRequests(): FriendRequest[] {
+  try {
+    const data = localStorage.getItem(FRIEND_REQUESTS_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveFriendRequests(requests: FriendRequest[]) {
+  localStorage.setItem(FRIEND_REQUESTS_KEY, JSON.stringify(requests));
+}
+
+function getFriendsList(): Record<string, string[]> {
+  try {
+    const data = localStorage.getItem(FRIENDS_KEY);
+    return data ? JSON.parse(data) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveFriendsList(friends: Record<string, string[]>) {
+  localStorage.setItem(FRIENDS_KEY, JSON.stringify(friends));
+}
+
 export const friendsManager = {
   /** Enviar solicitud de amistad */
-  sendRequest: async (toUserId: string): Promise<{ success: boolean; error?: string }> => {
-    const currentUser = auth.currentUser;
+  sendRequest(toUserId: string): { success: boolean; error?: string } {
+    const currentUser = auth.getCurrentUser();
     if (!currentUser) return { success: false, error: 'No autenticado' };
 
-    try {
-      // Verificar si ya son amigos
-      const areFriendsSnapshot = await get(ref(db, `friends/${currentUser.uid}/${toUserId}`));
-      if (areFriendsSnapshot.exists() && areFriendsSnapshot.val() === true) {
-        return { success: false, error: 'Ya son amigos' };
-      }
+    const requests = getFriendRequests();
 
-      // Buscar si ya hay una solicitud pendiente entre ellos
-      const requestsRef = ref(db, 'friendRequests');
-      const snapshot = await get(requestsRef);
-      if (snapshot.exists()) {
-        const requests = snapshot.val();
-        const existing = Object.values(requests).find((r: any) => 
-          r.status === 'pending' &&
-          ((r.fromUserId === currentUser.uid && r.toUserId === toUserId) ||
-           (r.fromUserId === toUserId && r.toUserId === currentUser.uid))
-        );
-        if (existing) return { success: false, error: 'Ya existe una solicitud pendiente' };
-      }
+    // Ya existe una solicitud pendiente
+    const existing = requests.find(
+      r =>
+        r.status === 'pending' &&
+        ((r.fromUserId === currentUser.id && r.toUserId === toUserId) ||
+          (r.fromUserId === toUserId && r.toUserId === currentUser.id))
+    );
+    if (existing) return { success: false, error: 'Ya existe una solicitud pendiente' };
 
-      // Crear nueva solicitud
-      const newRequestRef = push(ref(db, 'friendRequests'));
-      const request: FriendRequest = {
-        id: newRequestRef.key as string,
-        fromUserId: currentUser.uid,
-        toUserId,
-        status: 'pending',
-        timestamp: new Date().toISOString(),
-      };
-
-      await set(newRequestRef, request);
-      return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    // Ya son amigos
+    if (this.areFriends(currentUser.id, toUserId)) {
+      return { success: false, error: 'Ya son amigos' };
     }
+
+    const request: FriendRequest = {
+      id: `fr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      fromUserId: currentUser.id,
+      toUserId,
+      status: 'pending',
+      timestamp: new Date().toISOString(),
+    };
+
+    requests.push(request);
+    saveFriendRequests(requests);
+    emitFriendsUpdate();
+    return { success: true };
   },
 
   /** Aceptar solicitud de amistad */
-  acceptRequest: async (requestId: string): Promise<{ success: boolean; error?: string }> => {
-    const currentUser = auth.currentUser;
+  acceptRequest(requestId: string): { success: boolean; error?: string } {
+    const currentUser = auth.getCurrentUser();
     if (!currentUser) return { success: false, error: 'No autenticado' };
 
-    try {
-      const requestRef = ref(db, `friendRequests/${requestId}`);
-      const snapshot = await get(requestRef);
-      
-      if (!snapshot.exists()) return { success: false, error: 'Solicitud no encontrada' };
-      
-      const request = snapshot.val() as FriendRequest;
-      if (request.toUserId !== currentUser.uid || request.status !== 'pending') {
-         return { success: false, error: 'Solicitud no válida' };
-      }
+    const requests = getFriendRequests();
+    const request = requests.find(r => r.id === requestId && r.toUserId === currentUser.id && r.status === 'pending');
+    if (!request) return { success: false, error: 'Solicitud no encontrada' };
 
-      // Actualizar estado de la solicitud
-      await update(requestRef, { status: 'accepted' });
+    request.status = 'accepted';
+    saveFriendRequests(requests);
 
-      // Agregarse mutuamente
-      await set(ref(db, `friends/${currentUser.uid}/${request.fromUserId}`), true);
-      await set(ref(db, `friends/${request.fromUserId}/${currentUser.uid}`), true);
+    // Agregar ambos a la lista de amigos
+    const friends = getFriendsList();
+    if (!friends[currentUser.id]) friends[currentUser.id] = [];
+    if (!friends[request.fromUserId]) friends[request.fromUserId] = [];
 
-      return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    if (!friends[currentUser.id].includes(request.fromUserId)) {
+      friends[currentUser.id].push(request.fromUserId);
     }
+    if (!friends[request.fromUserId].includes(currentUser.id)) {
+      friends[request.fromUserId].push(currentUser.id);
+    }
+
+    saveFriendsList(friends);
+    emitFriendsUpdate();
+    return { success: true };
   },
 
   /** Rechazar solicitud de amistad */
-  rejectRequest: async (requestId: string): Promise<{ success: boolean; error?: string }> => {
-    const currentUser = auth.currentUser;
+  rejectRequest(requestId: string): { success: boolean; error?: string } {
+    const currentUser = auth.getCurrentUser();
     if (!currentUser) return { success: false, error: 'No autenticado' };
 
-    try {
-      const requestRef = ref(db, `friendRequests/${requestId}`);
-      const snapshot = await get(requestRef);
-      
-      if (!snapshot.exists()) return { success: false, error: 'Solicitud no encontrada' };
-      
-      const request = snapshot.val() as FriendRequest;
-      if (request.toUserId !== currentUser.uid || request.status !== 'pending') {
-         return { success: false, error: 'Solicitud no válida' };
-      }
+    const requests = getFriendRequests();
+    const request = requests.find(r => r.id === requestId && r.toUserId === currentUser.id && r.status === 'pending');
+    if (!request) return { success: false, error: 'Solicitud no encontrada' };
 
-      await update(requestRef, { status: 'rejected' });
-      return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
-    }
+    request.status = 'rejected';
+    saveFriendRequests(requests);
+    emitFriendsUpdate();
+    return { success: true };
   },
 
   /** Cancelar solicitud enviada */
-  cancelRequest: async (toUserId: string): Promise<{ success: boolean; error?: string }> => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) return { success: false, error: 'No autenticado' };
+  cancelRequest(toUserId: string): { success: boolean } {
+    const currentUser = auth.getCurrentUser();
+    if (!currentUser) return { success: false };
 
-    try {
-      const requestsRef = ref(db, 'friendRequests');
-      const snapshot = await get(requestsRef);
-      if (snapshot.exists()) {
-        const requests = snapshot.val();
-        const requestEntry = Object.entries(requests).find(([_, r]: [string, any]) => 
-          r.fromUserId === currentUser.uid && r.toUserId === toUserId && r.status === 'pending'
-        );
-        
-        if (requestEntry) {
-          await remove(ref(db, `friendRequests/${requestEntry[0]}`));
-          return { success: true };
-        }
-      }
-      return { success: false, error: 'Solicitud no encontrada' };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    const requests = getFriendRequests();
+    const idx = requests.findIndex(
+      r => r.fromUserId === currentUser.id && r.toUserId === toUserId && r.status === 'pending'
+    );
+    if (idx !== -1) {
+      requests.splice(idx, 1);
+      saveFriendRequests(requests);
+      emitFriendsUpdate();
     }
+    return { success: true };
   },
 
   /** Eliminar amigo */
-  removeFriend: async (friendId: string): Promise<{ success: boolean; error?: string }> => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) return { success: false, error: 'No autenticado' };
+  removeFriend(friendId: string): { success: boolean } {
+    const currentUser = auth.getCurrentUser();
+    if (!currentUser) return { success: false };
 
-    try {
-      await remove(ref(db, `friends/${currentUser.uid}/${friendId}`));
-      await remove(ref(db, `friends/${friendId}/${currentUser.uid}`));
-      return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    const friends = getFriendsList();
+    if (friends[currentUser.id]) {
+      friends[currentUser.id] = friends[currentUser.id].filter(id => id !== friendId);
     }
+    if (friends[friendId]) {
+      friends[friendId] = friends[friendId].filter(id => id !== currentUser.id);
+    }
+    saveFriendsList(friends);
+    emitFriendsUpdate();
+    return { success: true };
   },
 
   /** ¿Son amigos? */
-  areFriends: async (userId1: string, userId2: string): Promise<boolean> => {
-    try {
-      const snapshot = await get(ref(db, `friends/${userId1}/${userId2}`));
-      return snapshot.exists() && snapshot.val() === true;
-    } catch {
-      return false;
-    }
+  areFriends(userId1: string, userId2: string): boolean {
+    const friends = getFriendsList();
+    return friends[userId1]?.includes(userId2) || false;
   },
 
-  /** Listen to friends list */
-  listenToFriends: (userId: string, callback: (friendIds: string[]) => void): () => void => {
-    const friendsRef = ref(db, `friends/${userId}`);
-    return onValue(friendsRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        callback(Object.keys(data).filter(key => data[key] === true));
-      } else {
-        callback([]);
-      }
-    });
+  /** Obtener lista de amigos del usuario */
+  getFriends(userId?: string): UserProfile[] {
+    const currentUser = auth.getCurrentUser();
+    const targetId = userId || currentUser?.id;
+    if (!targetId) return [];
+
+    const friends = getFriendsList();
+    const friendIds = friends[targetId] || [];
+
+    return friendIds
+      .map(id => mockUsers[id])
+      .filter((u): u is UserProfile => !!u);
   },
 
-  /** Listen to pending requests received */
-  listenToPendingReceived: (userId: string, callback: (requests: FriendRequest[]) => void): () => void => {
-    const requestsRef = ref(db, 'friendRequests');
-    return onValue(requestsRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const pending = Object.values(data).filter((r: any) => 
-          r.toUserId === userId && r.status === 'pending'
-        ) as FriendRequest[];
-        callback(pending);
-      } else {
-        callback([]);
-      }
-    });
+  /** Obtener solicitudes pendientes RECIBIDAS */
+  getPendingReceived(): (FriendRequest & { fromUser?: UserProfile })[] {
+    const currentUser = auth.getCurrentUser();
+    if (!currentUser) return [];
+
+    return getFriendRequests()
+      .filter(r => r.toUserId === currentUser.id && r.status === 'pending')
+      .map(r => ({ ...r, fromUser: mockUsers[r.fromUserId] }));
   },
 
-  /** Listen to pending requests sent */
-  listenToPendingSent: (userId: string, callback: (requests: FriendRequest[]) => void): () => void => {
-    const requestsRef = ref(db, 'friendRequests');
-    return onValue(requestsRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const pending = Object.values(data).filter((r: any) => 
-          r.fromUserId === userId && r.status === 'pending'
-        ) as FriendRequest[];
-        callback(pending);
-      } else {
-        callback([]);
-      }
-    });
+  /** Obtener solicitudes pendientes ENVIADAS */
+  getPendingSent(): FriendRequest[] {
+    const currentUser = auth.getCurrentUser();
+    if (!currentUser) return [];
+
+    return getFriendRequests()
+      .filter(r => r.fromUserId === currentUser.id && r.status === 'pending');
   },
 
-  // Maintain backward compat names for local sync variables if needed by UI
-  getPendingCount: (): number => {
-    // This is synchronous, so it might not be accurate unless we wait for state.
-    // UI should refer to the local state fetched by the listeners instead.
-    return 0; 
-  }
+  /** Estado de relación con otro usuario */
+  getRelationshipStatus(otherUserId: string): 'none' | 'friends' | 'pending_sent' | 'pending_received' {
+    const currentUser = auth.getCurrentUser();
+    if (!currentUser) return 'none';
+
+    if (this.areFriends(currentUser.id, otherUserId)) return 'friends';
+
+    const requests = getFriendRequests();
+    const pendingSent = requests.find(
+      r => r.fromUserId === currentUser.id && r.toUserId === otherUserId && r.status === 'pending'
+    );
+    if (pendingSent) return 'pending_sent';
+
+    const pendingReceived = requests.find(
+      r => r.fromUserId === otherUserId && r.toUserId === currentUser.id && r.status === 'pending'
+    );
+    if (pendingReceived) return 'pending_received';
+
+    return 'none';
+  },
+
+  /** Obtener la solicitud pendiente recibida de un usuario */
+  getPendingRequestFrom(fromUserId: string): FriendRequest | undefined {
+    const currentUser = auth.getCurrentUser();
+    if (!currentUser) return undefined;
+
+    return getFriendRequests().find(
+      r => r.fromUserId === fromUserId && r.toUserId === currentUser.id && r.status === 'pending'
+    );
+  },
+
+  /** Obtener sugerencias de amigos (usuarios que no son amigos ni tienen solicitud pendiente) */
+  getSuggestions(): (UserProfile & { mutualFriends: number })[] {
+    const currentUser = auth.getCurrentUser();
+    if (!currentUser) return [];
+
+    const allUsers = getAllUsers();
+    const friends = getFriendsList();
+    const myFriends = friends[currentUser.id] || [];
+    const requests = getFriendRequests();
+
+    return allUsers
+      .filter(user => {
+        if (user.id === currentUser.id) return false;
+        if (myFriends.includes(user.id)) return false;
+        // Excluir si ya hay solicitud pendiente
+        const hasPending = requests.some(
+          r =>
+            r.status === 'pending' &&
+            ((r.fromUserId === currentUser.id && r.toUserId === user.id) ||
+              (r.fromUserId === user.id && r.toUserId === currentUser.id))
+        );
+        return !hasPending;
+      })
+      .map(user => {
+        // Calcular amigos en común
+        const theirFriends = friends[user.id] || user.friends || [];
+        const mutualFriends = myFriends.filter(f => theirFriends.includes(f)).length;
+        return { ...user, mutualFriends };
+      });
+  },
+
+  /** Número total de solicitudes pendientes recibidas */
+  getPendingCount(): number {
+    return this.getPendingReceived().length;
+  },
 };

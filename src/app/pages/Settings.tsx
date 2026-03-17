@@ -20,7 +20,8 @@ import {
   ChevronRight,
   UserCheck,
   AlertCircle,
-  Zap
+  Zap,
+  LogOut
 } from 'lucide-react';
 
 function formatDate(isoOrLocal?: string): string {
@@ -159,9 +160,10 @@ export default function Settings() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] relative overflow-hidden">
+    <div className="min-h-screen bg-[#050505] relative overflow-hidden transition-colors duration-300">
       {/* Background Animated Elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none fixed">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none fixed z-0">
+
         <motion.div 
           animate={{ x: [0, 30, 0], y: [0, 50, 0] }}
           transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
@@ -173,8 +175,6 @@ export default function Settings() {
           className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-blue-600/10 blur-[150px] rounded-full" 
         />
       </div>
-
-      <Navbar />
       
       <main className="max-w-3xl mx-auto px-4 py-12 relative z-10">
         <motion.div 
@@ -205,7 +205,7 @@ export default function Settings() {
         >
           {/* Cambiar correo */}
           <motion.div variants={itemVariants}>
-            <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-2xl rounded-3xl overflow-hidden group hover:border-white/20 transition-all duration-500">
+            <Card className="border-white/10 bg-white/5 dark:bg-white/5 backdrop-blur-2xl shadow-2xl rounded-3xl overflow-hidden group hover:border-white/20 transition-all duration-500">
               <CardHeader className="p-8 pb-4">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -242,7 +242,7 @@ export default function Settings() {
                         placeholder="NUEVO@NEXLY.COM"
                         value={newEmail}
                         onChange={(e) => setNewEmail(e.target.value)}
-                        className="h-12 bg-white/5 border-white/10 text-white placeholder:text-gray-600 rounded-xl focus:ring-blue-500/30 transition-all font-bold uppercase text-xs tracking-tight"
+                        className="h-12 bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-600 rounded-xl focus:ring-blue-500/30 transition-all font-bold uppercase text-xs tracking-tight"
                       />
                     </div>
                     <div className="space-y-2">
@@ -253,7 +253,7 @@ export default function Settings() {
                         placeholder="••••••••"
                         value={emailPassword}
                         onChange={(e) => setEmailPassword(e.target.value)}
-                        className="h-12 bg-white/5 border-white/10 text-white placeholder:text-gray-600 rounded-xl focus:ring-blue-500/30 transition-all"
+                        className="h-12 bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-600 rounded-xl focus:ring-blue-500/30 transition-all"
                       />
                     </div>
                   </div>
@@ -268,7 +268,7 @@ export default function Settings() {
 
           {/* Cambiar contraseña */}
           <motion.div variants={itemVariants}>
-            <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-2xl rounded-3xl overflow-hidden group hover:border-white/20 transition-all duration-500">
+            <Card className="border-white/10 bg-white/5 dark:bg-white/5 backdrop-blur-2xl shadow-2xl rounded-3xl overflow-hidden group hover:border-white/20 transition-all duration-500">
               <CardHeader className="p-8 pb-4">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -292,7 +292,7 @@ export default function Settings() {
                       placeholder="••••••••"
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="h-12 bg-white/5 border-white/10 text-white placeholder:text-gray-600 rounded-xl focus:ring-amber-500/30 transition-all"
+                      className="h-12 bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-600 rounded-xl focus:ring-amber-500/30 transition-all"
                     />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -304,7 +304,7 @@ export default function Settings() {
                         placeholder="MÍN. 6 CARACTERES"
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        className="h-12 bg-white/5 border-white/10 text-white placeholder:text-gray-600 rounded-xl focus:ring-amber-500/30 transition-all"
+                        className="h-12 bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-600 rounded-xl focus:ring-amber-500/30 transition-all"
                       />
                     </div>
                     <div className="space-y-2">
@@ -315,7 +315,7 @@ export default function Settings() {
                         placeholder="••••••••"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="h-12 bg-white/5 border-white/10 text-white placeholder:text-gray-600 rounded-xl focus:ring-amber-500/30 transition-all"
+                        className="h-12 bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-600 rounded-xl focus:ring-amber-500/30 transition-all"
                       />
                     </div>
                   </div>
@@ -330,7 +330,7 @@ export default function Settings() {
 
           {/* Opciones de seguridad */}
           <motion.div variants={itemVariants}>
-            <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-2xl rounded-3xl overflow-hidden group">
+            <Card className="border-white/10 bg-white/5 dark:bg-white/5 backdrop-blur-2xl shadow-2xl rounded-3xl overflow-hidden group">
               <CardHeader className="p-8 pb-4">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center group-hover:rotate-12 transition-transform">
@@ -345,9 +345,9 @@ export default function Settings() {
                 </div>
               </CardHeader>
               <CardContent className="p-8 space-y-4">
-                <div className="flex items-center justify-between p-5 rounded-2xl bg-white/[2%] border border-white/5 hover:bg-white/5 transition-colors">
+                <div className="flex items-center justify-between p-5 rounded-2xl bg-white/[2%] border border-white/5 hover:bg-white/5 dark:bg-white/5 transition-colors">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-white/5 dark:bg-white/5 flex items-center justify-center">
                       <Bell className="w-5 h-5 text-gray-400" />
                     </div>
                     <div>
@@ -361,9 +361,9 @@ export default function Settings() {
                     className="data-[state=checked]:bg-blue-600"
                   />
                 </div>
-                <div className="flex items-center justify-between p-5 rounded-2xl bg-white/[2%] border border-white/5 hover:bg-white/5 transition-colors">
+                <div className="flex items-center justify-between p-5 rounded-2xl bg-white/[2%] border border-white/5 hover:bg-white/5 dark:bg-white/5 transition-colors">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-white/5 dark:bg-white/5 flex items-center justify-center">
                       <AlertCircle className="w-5 h-5 text-gray-400" />
                     </div>
                     <div>
@@ -398,9 +398,9 @@ export default function Settings() {
                 </div>
               </CardHeader>
               <CardContent className="p-8 space-y-4">
-                <div className="flex items-center justify-between p-5 rounded-2xl bg-white/[2%] border border-white/5 hover:bg-white/5 transition-colors">
+                <div className="flex items-center justify-between p-5 rounded-2xl bg-white/[2%] border border-white/5 hover:bg-white/5 dark:bg-white/5 transition-colors">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-white/5 dark:bg-white/5 flex items-center justify-center">
                       <Zap className="w-5 h-5 text-blue-400" />
                     </div>
                     <div>
@@ -457,6 +457,20 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
+          </motion.div>
+
+          {/* Cerrar Sesión */}
+          <motion.div variants={itemVariants}>
+            <Button 
+              onClick={() => {
+                auth.logout();
+                navigate('/');
+              }}
+              className="w-full h-14 rounded-2xl bg-red-600/10 hover:bg-red-600/20 text-red-500 border border-red-500/20 shadow-lg font-black uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-3 group"
+            >
+              <LogOut className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              CERRAR SESIÓN
+            </Button>
           </motion.div>
         </motion.div>
       </main>

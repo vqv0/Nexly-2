@@ -42,7 +42,7 @@ export function FriendSuggestion({ friend, onFriendAction }: FriendSuggestionPro
   };
 
   return (
-    <div className="flex items-center justify-between p-2.5 hover:bg-white/5 rounded-xl transition-all duration-300 group">
+    <div className="flex items-center justify-between p-2.5 hover:bg-white/5 dark:bg-white/5 rounded-xl transition-all duration-300 group">
       <div className="flex items-center gap-3 flex-1 min-w-0">
         <div className="relative">
           {friend.avatar ? (
@@ -105,7 +105,7 @@ export function FriendSuggestion({ friend, onFriendAction }: FriendSuggestionPro
               key="added"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex items-center border border-white/5 bg-white/5 px-3 py-1.5 rounded-lg gap-2"
+              className="flex items-center border border-white/5 bg-white/5 dark:bg-white/5 px-3 py-1.5 rounded-lg gap-2"
             >
               <Check className="w-3.5 h-3.5 text-blue-400" />
               <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">Amigo</span>

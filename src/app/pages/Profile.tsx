@@ -58,7 +58,7 @@ export function Profile() {
       bio: user.bio || mockProfile?.bio,
       location: user.location || mockProfile?.location,
       website: user.website || mockProfile?.website,
-      coverPhoto: mockProfile?.coverPhoto || 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200',
+      coverPhoto: user.coverPhoto || mockProfile?.coverPhoto || 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200',
       followers: mockProfile?.followers || 0,
       following: mockProfile?.following || 0,
       posts: mockProfile?.posts || 0,
@@ -107,7 +107,7 @@ export function Profile() {
             bio: registeredUser.bio || mockProfile?.bio,
             location: registeredUser.location || mockProfile?.location,
             website: registeredUser.website || mockProfile?.website,
-            coverPhoto: mockProfile?.coverPhoto || 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200',
+            coverPhoto: registeredUser.coverPhoto || mockProfile?.coverPhoto || 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200',
             followers: mockProfile?.followers || 0,
             following: mockProfile?.following || 0,
             posts: mockProfile?.posts || 0,
@@ -264,7 +264,7 @@ export function Profile() {
     switch (friendStatus) {
       case 'friends':
         return (
-          <Button onClick={handleRemoveFriend} variant="outline" className="gap-2 bg-white/5 border-white/10 text-white hover:bg-red-500/10 hover:text-red-400">
+          <Button onClick={handleRemoveFriend} variant="outline" className="gap-2 bg-white/5 dark:bg-white/5 border-white/10 text-white hover:bg-red-500/10 hover:text-red-400">
             <UserCheck className="w-4 h-4" />
             Amigos
           </Button>
@@ -288,7 +288,7 @@ export function Profile() {
               <Check className="w-4 h-4" />
               Aceptar
             </Button>
-            <Button onClick={handleRejectRequest} variant="outline" className="gap-2 bg-white/5 border-white/10 text-white hover:bg-red-500/10 hover:text-red-400">
+            <Button onClick={handleRejectRequest} variant="outline" className="gap-2 bg-white/5 dark:bg-white/5 border-white/10 text-white hover:bg-red-500/10 hover:text-red-400">
               <X className="w-4 h-4" />
               Rechazar
             </Button>
@@ -319,8 +319,6 @@ export function Profile() {
           className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-indigo-600/10 blur-[180px] rounded-full" 
         />
       </div>
-
-      <Navbar />
       
       <div className="max-w-5xl mx-auto px-4 py-8 relative z-10">
         {isBlocked ? (
@@ -329,7 +327,7 @@ export function Profile() {
             animate={{ opacity: 1, scale: 1 }}
             className="mt-20 flex flex-col items-center text-center"
           >
-            <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-6 border border-white/10">
+            <div className="w-24 h-24 bg-white/5 dark:bg-white/5 rounded-full flex items-center justify-center mb-6 border border-white/10">
               <Ban className="w-12 h-12 text-red-500/50" />
             </div>
             <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter mb-4">
@@ -358,7 +356,7 @@ export function Profile() {
               transition={{ duration: 0.6 }}
             >
           {/* Profile Header Card */}
-          <Card className="mb-8 overflow-hidden border-white/10 bg-white/5 backdrop-blur-2xl shadow-2xl rounded-3xl">
+          <Card className="mb-8 overflow-hidden border-white/10 bg-white/5 dark:bg-white/5 backdrop-blur-2xl shadow-2xl rounded-3xl">
             {/* Cover Photo */}
             <div className="h-48 sm:h-72 relative">
               <img 
@@ -371,6 +369,7 @@ export function Profile() {
                 <Button
                   variant="secondary"
                   size="sm"
+                  onClick={() => setProfileEditOpen(true)}
                   className="absolute bottom-4 right-4 gap-2 bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-black/60 rounded-xl"
                 >
                   <Camera className="w-4 h-4" />
@@ -401,7 +400,10 @@ export function Profile() {
                     )}
                     </div>
                     {isOwnProfile && (
-                      <button className="absolute bottom-2 right-2 w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-2xl hover:bg-blue-500 transition-all border-4 border-[#050505] active:scale-90">
+                      <button 
+                        onClick={() => setProfileEditOpen(true)}
+                        className="absolute bottom-2 right-2 w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-2xl hover:bg-blue-500 transition-all border-4 border-[#050505] active:scale-90"
+                      >
                         <Camera className="w-5 h-5" />
                       </button>
                     )}
@@ -413,20 +415,20 @@ export function Profile() {
                     {profileUser.bio && <p className="text-gray-400 mt-2 font-medium max-w-md">{profileUser.bio}</p>}
                     <div className="flex flex-wrap justify-center sm:justify-start gap-4 mt-4 text-xs font-bold uppercase tracking-widest text-gray-500">
                       {profileUser.location && (
-                        <div className="flex items-center gap-1.5 bg-white/5 py-1.5 px-3 rounded-full border border-white/5">
+                        <div className="flex items-center gap-1.5 bg-white/5 dark:bg-white/5 py-1.5 px-3 rounded-full border border-white/5">
                           <MapPin className="w-3.5 h-3.5 text-blue-400" />
                           {profileUser.location}
                         </div>
                       )}
                       {profileUser.website && (
-                        <div className="flex items-center gap-1.5 bg-white/5 py-1.5 px-3 rounded-full border border-white/5">
+                        <div className="flex items-center gap-1.5 bg-white/5 dark:bg-white/5 py-1.5 px-3 rounded-full border border-white/5">
                           <Globe className="w-3.5 h-3.5 text-indigo-400" />
                           <a href={profileUser.website} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                             Web
                           </a>
                         </div>
                       )}
-                      <div className="flex items-center gap-1.5 bg-white/5 py-1.5 px-3 rounded-full border border-white/5">
+                      <div className="flex items-center gap-1.5 bg-white/5 dark:bg-white/5 py-1.5 px-3 rounded-full border border-white/5">
                         <Calendar className="w-3.5 h-3.5 text-gray-400" />
                         {profileUser.joinedDate}
                       </div>
@@ -450,7 +452,7 @@ export function Profile() {
                       <Button
                         onClick={handleMessage}
                         variant="outline"
-                        className="gap-2 bg-white/5 border-white/10 text-white hover:bg-white/10 py-6 px-6 rounded-2xl"
+                        className="gap-2 bg-white/5 dark:bg-white/5 border-white/10 text-white hover:bg-white/10 dark:bg-white/10 py-6 px-6 rounded-2xl"
                       >
                         <MessageCircle className="w-4 h-4" />
                         Mensaje
@@ -458,7 +460,7 @@ export function Profile() {
                       
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="icon" className="bg-white/5 border-white/10 text-white hover:bg-white/10 w-12 h-12 flex items-center justify-center rounded-2xl">
+                          <Button variant="outline" size="icon" className="bg-white/5 dark:bg-white/5 border-white/10 text-white hover:bg-white/10 dark:bg-white/10 w-12 h-12 flex items-center justify-center rounded-2xl">
                             <MoreHorizontal className="w-5 h-5" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -483,11 +485,11 @@ export function Profile() {
               </div>
 
               {/* Stats */}
-              <div className="grid grid-cols-3 gap-4 sm:gap-8 mt-10 pt-8 border-t border-white/5">
+              <div className="grid grid-cols-3 gap-2 sm:gap-8 mt-10 pt-8 border-t border-white/5">
                 {stats.map((stat) => (
-                  <div key={stat.label} className="text-center group cursor-pointer p-4 rounded-2xl hover:bg-white/5 transition-all duration-300 border border-transparent hover:border-white/5">
-                    <p className="text-3xl font-black text-white group-hover:text-blue-400 transition-colors uppercase italic">{stat.value}</p>
-                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[0.2em] mt-1">{stat.label}</p>
+                  <div key={stat.label} className="text-center group cursor-pointer p-4 rounded-3xl hover:bg-white/5 dark:bg-white/5 transition-all duration-300 border border-transparent hover:border-white/5">
+                    <p className="text-2xl sm:text-3xl font-black text-white group-hover:text-blue-400 transition-colors uppercase italic">{stat.value}</p>
+                    <p className="text-[9px] sm:text-[10px] text-gray-500 font-bold uppercase tracking-[0.2em] mt-1">{stat.label}</p>
                   </div>
                 ))}
               </div>
@@ -502,7 +504,7 @@ export function Profile() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            <Card className="mb-8 p-6 border-white/10 bg-white/5 backdrop-blur-xl rounded-3xl">
+            <Card className="mb-8 p-6 border-white/10 bg-white/5 dark:bg-white/5 backdrop-blur-xl rounded-3xl">
               <h2 className="text-sm font-black uppercase tracking-widest text-white mb-6 flex items-center gap-2">
                 <LayoutGrid className="w-4 h-4 text-blue-400" />
                 Historias destacadas
@@ -536,7 +538,7 @@ export function Profile() {
           transition={{ delay: 0.4 }}
         >
           <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-12">
-            <div className="bg-white/5 backdrop-blur-xl p-1.5 rounded-2xl border border-white/10 mb-8 overflow-x-auto scrollbar-hide">
+            <div className="bg-white/5 dark:bg-white/5 backdrop-blur-xl p-1.5 rounded-2xl border border-white/10 mb-8 overflow-x-auto scrollbar-hide">
               <TabsList className="bg-transparent border-0 w-full min-w-max">
                 <TabsTrigger 
                   value="posts" 
@@ -592,7 +594,7 @@ export function Profile() {
                     ))}
                   </div>
                 ) : (
-                  <Card className="p-16 text-center border-white/5 bg-white/5 rounded-3xl border-dashed">
+                  <Card className="p-16 text-center border-white/5 bg-white/5 dark:bg-white/5 rounded-3xl border-dashed">
                     <p className="text-gray-500 font-bold uppercase tracking-widest text-sm">No hay publicaciones todavía</p>
                   </Card>
                 )}
@@ -613,7 +615,7 @@ export function Profile() {
                     ))}
                   </div>
                 ) : (
-                  <Card className="p-16 text-center border-white/5 bg-white/5 rounded-3xl border-dashed">
+                  <Card className="p-16 text-center border-white/5 bg-white/5 dark:bg-white/5 rounded-3xl border-dashed">
                     <Share2 className="w-12 h-12 text-gray-700 mx-auto mb-4" />
                     <p className="text-gray-500 font-bold uppercase tracking-widest text-sm">No hay publicaciones compartidas todavía</p>
                   </Card>
@@ -621,7 +623,7 @@ export function Profile() {
               </TabsContent>
 
               <TabsContent value="info" className="mt-0">
-                <Card className="p-8 border-white/10 bg-white/5 backdrop-blur-xl rounded-3xl">
+                <Card className="p-8 border-white/10 bg-white/5 dark:bg-white/5 backdrop-blur-xl rounded-3xl">
                   <h2 className="text-xl font-black text-white italic uppercase tracking-tight mb-8">Información Personal</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-10">
                     {profileUser.bio && (
@@ -639,7 +641,7 @@ export function Profile() {
               </TabsContent>
 
               <TabsContent value="friends" className="mt-0">
-                <Card className="p-8 border-white/10 bg-white/5 backdrop-blur-xl rounded-3xl">
+                <Card className="p-8 border-white/10 bg-white/5 dark:bg-white/5 backdrop-blur-xl rounded-3xl">
                   <div className="flex items-center justify-between mb-8">
                     <h2 className="text-xl font-black text-white italic uppercase tracking-tight">Amigos ({friendsList.length})</h2>
                   </div>
@@ -651,7 +653,7 @@ export function Profile() {
                           initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: 1, scale: 1 }}
                           transition={{ delay: index * 0.05 }}
-                          className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all duration-300 cursor-pointer group"
+                          className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-white/5 dark:bg-white/5 hover:bg-white/10 dark:bg-white/10 border border-white/5 transition-all duration-300 cursor-pointer group"
                           onClick={() => navigate(`/profile/${friend.id}`)}
                         >
                           <div className="relative">
@@ -683,7 +685,7 @@ export function Profile() {
               </TabsContent>
 
               <TabsContent value="photos" className="mt-0">
-                <Card className="p-8 border-white/10 bg-white/5 backdrop-blur-xl rounded-3xl">
+                <Card className="p-8 border-white/10 bg-white/5 dark:bg-white/5 backdrop-blur-xl rounded-3xl">
                   <h2 className="text-xl font-black text-white italic uppercase tracking-tight mb-8">Galería de Fotos ({profileUser.photos})</h2>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
                     {userPosts

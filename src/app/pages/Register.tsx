@@ -6,7 +6,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader } from '../components/ui/card';
 import { toast } from 'sonner';
-import { User, Mail, MapPin, Lock, ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
+import { User, Mail, MapPin, Lock, ArrowLeft, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function Register() {
@@ -18,7 +18,7 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (password !== confirmPassword) {
@@ -33,7 +33,7 @@ export default function Register() {
 
     setLoading(true);
 
-    const result = await auth.register(email, password, name, location || undefined);
+    const result = auth.register(email, password, name, location || undefined);
     
     if (result.success) {
       toast.success('¡Bienvenido a Nexly!');
@@ -95,7 +95,7 @@ export default function Register() {
         animate="visible"
         className="w-full max-w-lg z-10"
       >
-        <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-2xl relative overflow-hidden">
+        <Card className="border-white/10 bg-white/5 dark:bg-white/5 backdrop-blur-2xl shadow-2xl relative overflow-hidden">
           {/* Subtle top light effect */}
           <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
           
@@ -130,7 +130,7 @@ export default function Register() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
-                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all rounded-xl"
+                    className="bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all rounded-xl"
                   />
                 </div>
               </motion.div>
@@ -146,7 +146,7 @@ export default function Register() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all rounded-xl"
+                    className="bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all rounded-xl"
                   />
                 </div>
               </motion.div>
@@ -160,7 +160,7 @@ export default function Register() {
                     placeholder="Madrid, España"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
-                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all rounded-xl"
+                    className="bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all rounded-xl"
                   />
                 </div>
               </motion.div>
@@ -176,7 +176,7 @@ export default function Register() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all rounded-xl"
+                    className="bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all rounded-xl"
                   />
                 </div>
               </motion.div>
@@ -192,7 +192,7 @@ export default function Register() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all rounded-xl"
+                    className="bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all rounded-xl"
                   />
                 </div>
               </motion.div>

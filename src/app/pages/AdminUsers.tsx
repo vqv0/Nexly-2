@@ -14,6 +14,8 @@ import {
   ShieldCheck,
   UserCircle2,
   MessageSquare,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -44,6 +46,7 @@ export default function AdminUsers() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [showTable, setShowTable] = useState(true);
 
   useEffect(() => {
     if (!adminAuth.isAuthenticated()) {
@@ -81,7 +84,7 @@ export default function AdminUsers() {
   );
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white">
+    <div className="min-h-screen bg-[#050505] dark:text-white">
       <AdminNavbar />
 
       {/* Animated Background */}
@@ -113,7 +116,7 @@ export default function AdminUsers() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          <Card className="mb-8 bg-white/5 border-white/5 backdrop-blur-3xl overflow-hidden group">
+          <Card className="mb-8 bg-white/5 dark:bg-white/5 border-white/5 backdrop-blur-3xl overflow-hidden group">
             <CardContent className="pt-6">
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5 group-focus-within:text-blue-400 transition-colors" />
@@ -121,7 +124,7 @@ export default function AdminUsers() {
                   placeholder="BUSCAR POR NOMBRE, EMAIL O UBICACIÓN..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-12 bg-white/5 border-white/10 text-white placeholder:text-gray-700 h-14 rounded-2xl focus:ring-blue-500/20 focus:border-blue-500/40 transition-all font-bold uppercase tracking-wider text-xs"
+                  className="pl-12 bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-700 h-14 rounded-2xl focus:ring-blue-500/20 focus:border-blue-500/40 transition-all font-bold uppercase tracking-wider text-xs"
                 />
               </div>
             </CardContent>
@@ -134,16 +137,35 @@ export default function AdminUsers() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          <Card className="bg-white/5 border-white/5 backdrop-blur-3xl overflow-hidden">
+          <Card className="bg-white/5 dark:bg-white/5 border-white/5 backdrop-blur-3xl overflow-hidden">
             <CardHeader className="border-b border-white/5 flex flex-row items-center justify-between">
-              <CardTitle className="text-sm font-black italic uppercase tracking-widest text-gray-400">Base de Datos de Usuarios</CardTitle>
-              <div className="flex items-center gap-2 text-[10px] font-bold text-blue-400 uppercase tracking-widest">
-                <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
-                {users.length} Registros Activos
+              <div className="flex items-center gap-4">
+                <CardTitle className="text-sm font-black italic uppercase tracking-widest text-gray-400">Base de Datos de Usuarios</CardTitle>
+                <div className="flex items-center gap-2 text-[10px] font-bold text-blue-400 uppercase tracking-widest">
+                  <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
+                  {users.length} Registros Activos
+                </div>
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowTable(!showTable)}
+                className="bg-white/5 dark:bg-white/5 hover:bg-white/10 dark:bg-white/10 text-gray-400 hover:text-white rounded-xl font-bold uppercase tracking-widest text-[10px] h-8 px-4"
+              >
+                {showTable ? 'Ocultar Tabla' : 'Mostrar Tabla'}
+                {showTable ? <ChevronUp className="w-4 h-4 ml-2" /> : <ChevronDown className="w-4 h-4 ml-2" />}
+              </Button>
             </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
+            <AnimatePresence>
+              {showTable && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="border-b border-white/5 text-[10px] font-black uppercase tracking-widest text-gray-500">
@@ -161,7 +183,7 @@ export default function AdminUsers() {
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0, x: -20 }}
-                          className="group hover:bg-white/5 transition-all outline-none"
+                          className="group hover:bg-white/5 dark:bg-white/5 transition-all outline-none"
                         >
                           <td className="py-5 px-6">
                             <div className="flex items-center gap-4">
@@ -203,7 +225,7 @@ export default function AdminUsers() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => setSelectedUser(user)}
-                                className="bg-white/5 border-white/10 text-white hover:bg-white/10 h-8 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest"
+                                className="bg-white/5 dark:bg-white/5 border-white/10 text-white hover:bg-white/10 dark:bg-white/10 h-8 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest"
                               >
                                 <Eye className="w-3.5 h-3.5 mr-2" />
                                 Ver
@@ -241,6 +263,9 @@ export default function AdminUsers() {
                 )}
               </div>
             </CardContent>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </Card>
         </motion.div>
       </div>
@@ -256,7 +281,7 @@ export default function AdminUsers() {
 
           {selectedUser && (
             <div className="space-y-8 p-4">
-              <div className="flex items-center gap-6 p-6 bg-white/5 rounded-[2rem] ring-1 ring-white/10 shadow-inner">
+              <div className="flex items-center gap-6 p-6 bg-white/5 dark:bg-white/5 rounded-[2rem] ring-1 ring-white/10 shadow-inner">
                 <div className="relative">
                   {selectedUser.avatar ? (
                     <img
@@ -287,7 +312,7 @@ export default function AdminUsers() {
                   { label: 'Sitio de Enlace', value: selectedUser.website, icon: '🌐' },
                   { label: 'Fecha de Creación', value: selectedUser.createdAt, icon: '🗓️' },
                 ].map((info) => (
-                  <div key={info.label} className="p-4 bg-white/5 border border-white/5 rounded-2xl group hover:border-white/10 transition-colors">
+                  <div key={info.label} className="p-4 bg-white/5 dark:bg-white/5 border border-white/5 rounded-2xl group hover:border-white/10 transition-colors">
                     <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">{info.label}</p>
                     <p className="text-xs font-bold group-hover:text-blue-400 transition-colors">
                       {info.value || 'SIN DATOS'}
@@ -310,7 +335,7 @@ export default function AdminUsers() {
                 <Button 
                   onClick={() => setSelectedUser(null)}
                   variant="outline"
-                  className="w-full bg-white/5 border-white/10 text-white font-black uppercase tracking-widest h-12 rounded-xl hover:bg-white/10 transition-all shadow-xl"
+                  className="w-full bg-white/5 dark:bg-white/5 border-white/10 text-white font-black uppercase tracking-widest h-12 rounded-xl hover:bg-white/10 dark:bg-white/10 transition-all shadow-xl"
                 >
                   CERRAR EXPEDIENTE
                 </Button>
@@ -334,7 +359,7 @@ export default function AdminUsers() {
             <Button
               variant="outline"
               onClick={() => setDeleteDialogOpen(false)}
-              className="bg-white/5 border-white/10 font-black text-[10px] uppercase tracking-widest h-12 rounded-xl px-8"
+              className="bg-white/5 dark:bg-white/5 border-white/10 font-black text-[10px] uppercase tracking-widest h-12 rounded-xl px-8"
             >
               Abortar
             </Button>

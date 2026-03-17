@@ -134,11 +134,11 @@ export default function AdminDashboard() {
           {statsCards.map((stat) => (
             <motion.div key={stat.title} variants={itemVariants}>
               <Card
-                className="bg-white/5 border-white/5 backdrop-blur-3xl overflow-hidden cursor-pointer hover:border-white/10 transition-all group relative"
+                className="bg-white/5 border border-white/10 backdrop-blur-3xl overflow-hidden cursor-pointer hover:border-white/20 hover:-translate-y-1 transition-all duration-300 group relative rounded-[2rem] shadow-[0_0_40px_rgba(0,0,0,0.3)]"
                 onClick={stat.action}
               >
-                <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-100 transition-opacity`} />
-                <CardContent className="p-6 relative z-10">
+                <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
+                <CardContent className="p-8 relative z-10">
                   <div className="flex items-center justify-between mb-8">
                     <div className={`p-3 bg-white/5 rounded-2xl ${stat.iconColor}`}>
                       <stat.icon className="w-6 h-6" />
@@ -156,20 +156,23 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Recent Activity */}
           <motion.div 
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
+            transition={{ delay: 0.5, ease: "easeOut" }}
             className="lg:col-span-2"
           >
-            <Card className="bg-white/5 border-white/5 backdrop-blur-3xl h-full">
-              <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 mb-2">
+            <Card className="bg-white/5 border border-white/10 backdrop-blur-3xl h-full rounded-[3rem] shadow-[0_0_80px_rgba(0,0,0,0.3)] overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 blur-[80px] rounded-full pointer-events-none" />
+              <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 mb-4 px-8 pt-8 pb-6 relative z-10">
                 <div>
-                  <CardTitle className="text-lg font-black italic uppercase tracking-tight">Actividad del Sistema</CardTitle>
-                  <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Eventos en tiempo real</p>
+                  <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Actividad del Sistema</CardTitle>
+                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-1">Eventos en tiempo real</p>
                 </div>
-                <Activity className="w-5 h-5 text-purple-400 animate-pulse" />
+                <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center border border-purple-500/20">
+                  <Activity className="w-5 h-5 text-purple-400 animate-pulse" />
+                </div>
               </CardHeader>
-              <CardContent className="pt-6">
+              <CardContent className="px-8 pb-8 pt-2 relative z-10">
                 <div className="space-y-6">
                   {recentActivity.map((activity, index) => (
                     <motion.div
@@ -200,17 +203,18 @@ export default function AdminDashboard() {
 
           {/* Quick Actions */}
           <motion.div 
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
+            transition={{ delay: 0.6, ease: "easeOut" }}
             className="lg:col-span-1"
           >
-            <Card className="bg-white/5 border-white/5 backdrop-blur-3xl shadow-2xl h-full border-t border-purple-500/20">
-              <CardHeader className="border-b border-white/5">
-                <CardTitle className="text-lg font-black italic uppercase tracking-tight">Acciones Rápidas</CardTitle>
-                <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Protocolos rápidos</p>
+            <Card className="bg-white/5 border border-white/10 backdrop-blur-3xl h-full border-t border-t-purple-500/30 rounded-[3rem] shadow-[0_0_80px_rgba(0,0,0,0.3)] overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 blur-[50px] rounded-full pointer-events-none" />
+              <CardHeader className="border-b border-white/5 px-8 pt-8 pb-6 relative z-10">
+                <CardTitle className="text-xl font-black italic uppercase tracking-tighter">Acciones Rápidas</CardTitle>
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-1">Protocolos de administración</p>
               </CardHeader>
-              <CardContent className="pt-8 space-y-4">
+              <CardContent className="px-8 pb-8 pt-6 space-y-4 relative z-10">
                 {[
                   { name: 'Gestionar Usuarios', icon: Users, path: '/admin/users' },
                   { name: 'Ver Mensajes', icon: MessageSquare, path: '/admin/messages' },

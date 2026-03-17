@@ -16,7 +16,7 @@ interface NewsCardProps {
 
 export function NewsCard({ news }: NewsCardProps) {
   return (
-    <Card className="group overflow-hidden border-white/5 bg-white/5 hover:bg-white/[8%] transition-all duration-500 cursor-pointer rounded-xl border border-white/10 shadow-xl active:scale-[0.98]">
+    <Card className="group overflow-hidden border-white/5 bg-white/5 dark:bg-white/5 hover:bg-white/[8%] transition-all duration-500 cursor-pointer rounded-xl border border-white/10 shadow-xl active:scale-[0.98]">
       <div className="relative h-28 overflow-hidden">
         <img
           src={news.image}

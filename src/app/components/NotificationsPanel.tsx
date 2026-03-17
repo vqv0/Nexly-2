@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from './ui/button';
-import { Heart, MessageCircle, UserPlus, Share2, Check, X, Bell, Sparkles } from 'lucide-react';
+import { Heart, MessageCircle, UserPlus, Share2, Check, X, Bell } from 'lucide-react';
 import { friendsManager } from '../utils/friendsManager';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
@@ -112,7 +112,7 @@ export function NotificationsPanel({ open, onOpenChange }: NotificationsPanelPro
                 </div>
                 <SheetTitle className="text-xl font-black text-white italic uppercase tracking-tight">Actividad</SheetTitle>
               </div>
-              <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase tracking-widest text-blue-400 hover:bg-white/5 hover:text-blue-300">
+              <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase tracking-widest text-blue-400 hover:bg-white/5 dark:bg-white/5 hover:text-blue-300">
                 Marcar todo
               </Button>
             </div>
@@ -129,7 +129,7 @@ export function NotificationsPanel({ open, onOpenChange }: NotificationsPanelPro
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ delay: index * 0.05 }}
                     className={`group p-4 rounded-2xl cursor-pointer transition-all duration-300 border border-transparent ${
-                      !notification.read ? 'bg-white/[3%] border-white/5 shadow-lg' : 'hover:bg-white/5 hover:border-white/5'
+                      !notification.read ? 'bg-white/[3%] border-white/5 shadow-lg' : 'hover:bg-white/5 dark:bg-white/5 hover:border-white/5'
                     }`}
                   >
                     <div className="flex gap-4">
@@ -176,7 +176,7 @@ export function NotificationsPanel({ open, onOpenChange }: NotificationsPanelPro
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-8 bg-white/5 border-white/10 text-white font-black text-[9px] uppercase tracking-widest rounded-lg flex-1 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20"
+                              className="h-8 bg-white/5 dark:bg-white/5 border-white/10 text-white font-black text-[9px] uppercase tracking-widest rounded-lg flex-1 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleRejectRequest(notification.requestId!);
@@ -190,7 +190,7 @@ export function NotificationsPanel({ open, onOpenChange }: NotificationsPanelPro
 
                         {!notification.read && notification.type !== 'friend_request' && (
                           <div className="flex items-center gap-1.5 mt-2">
-                            <Sparkles className="w-3 h-3 text-blue-400 animate-pulse" />
+                            <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
                             <span className="text-[9px] font-black uppercase tracking-widest text-blue-400">Nuevo</span>
                           </div>
                         )}

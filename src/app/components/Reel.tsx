@@ -29,7 +29,7 @@ export function Reel({ reel }: ReelProps) {
         
         {/* Central Play Button */}
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 transform scale-90 group-hover:scale-100">
-          <div className="w-14 h-14 bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center border border-white/30 shadow-2xl">
+          <div className="w-14 h-14 bg-white/20 dark:bg-white/20 backdrop-blur-xl rounded-full flex items-center justify-center border border-white/30 shadow-2xl">
             <Play className="w-6 h-6 text-white ml-1 fill-white/20" />
           </div>
         </div>
@@ -59,7 +59,7 @@ export function Reel({ reel }: ReelProps) {
 
         {/* Top badge */}
         <div className="absolute top-3 right-3">
-          <div className="w-8 h-8 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full bg-white/10 dark:bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center">
             <Play className="w-3 h-3 text-white fill-current" />
           </div>
         </div>

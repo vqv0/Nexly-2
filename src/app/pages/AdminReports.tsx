@@ -66,7 +66,7 @@ export default function AdminReports() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white selection:bg-purple-500/30">
+    <div className="min-h-screen bg-[#050505] dark:text-white selection:bg-purple-500/30">
       <AdminNavbar />
 
       {/* Background Effects */}
@@ -100,7 +100,7 @@ export default function AdminReports() {
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="bg-white/5 border border-white/10 rounded-3xl p-12 text-center"
+                  className="bg-white/5 dark:bg-white/5 border border-white/10 rounded-3xl p-12 text-center"
                 >
                   <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-4 opacity-20" />
                   <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">No hay reportes pendientes</p>
@@ -117,7 +117,7 @@ export default function AdminReports() {
                     className={`cursor-pointer group p-4 rounded-2xl border transition-all duration-300 ${
                       selectedReport?.id === report.id
                         ? 'bg-red-500/10 border-red-500/50 shadow-lg shadow-red-500/10'
-                        : 'bg-white/5 border-white/5 hover:border-white/20'
+                        : 'bg-white/5 dark:bg-white/5 border-white/5 hover:border-white/20'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-3">
@@ -129,7 +129,7 @@ export default function AdminReports() {
                           {new Date(report.timestamp).toLocaleDateString()}
                         </span>
                       </div>
-                      <span className="text-[9px] font-black uppercase bg-white/5 px-2 py-1 rounded-md text-gray-500 group-hover:text-white transition-colors">
+                      <span className="text-[9px] font-black uppercase bg-white/5 dark:bg-white/5 px-2 py-1 rounded-md text-gray-500 group-hover:text-white transition-colors">
                         ID: {report.postId.slice(0, 8)}...
                       </span>
                     </div>
@@ -159,7 +159,7 @@ export default function AdminReports() {
                   exit={{ opacity: 0, scale: 0.98 }}
                   className="sticky top-24"
                 >
-                  <Card className="bg-white/5 border-white/10 backdrop-blur-3xl overflow-hidden rounded-3xl border-t-red-500/50 shadow-2xl">
+                  <Card className="bg-white/5 dark:bg-white/5 border-white/10 backdrop-blur-3xl overflow-hidden rounded-3xl border-t-red-500/50 shadow-2xl">
                     <CardHeader className="border-b border-white/5 p-8">
                       <div className="flex justify-between items-start mb-6">
                         <div>
@@ -181,7 +181,7 @@ export default function AdminReports() {
                           <Button 
                             variant="outline" 
                             size="sm"
-                            className="rounded-xl font-bold uppercase tracking-tight text-[10px] h-9 border-white/10 hover:bg-white/5"
+                            className="rounded-xl font-bold uppercase tracking-tight text-[10px] h-9 border-white/10 hover:bg-white/5 dark:bg-white/5"
                             onClick={() => handleDismissReport(selectedReport.id)}
                           >
                             <CheckCircle2 className="w-3 h-3 mr-2 text-emerald-500" />
@@ -191,14 +191,14 @@ export default function AdminReports() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                        <div className="p-4 bg-white/5 dark:bg-white/5 rounded-2xl border border-white/5">
                           <div className="flex items-center gap-2 mb-1 text-gray-500">
                             <AlertTriangle className="w-3 h-3" />
                             <span className="text-[9px] font-black uppercase tracking-widest">Motivo del Reporte</span>
                           </div>
                           <p className="font-bold text-sm text-red-200">{selectedReport.reason}</p>
                         </div>
-                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                        <div className="p-4 bg-white/5 dark:bg-white/5 rounded-2xl border border-white/5">
                           <div className="flex items-center gap-2 mb-1 text-gray-500">
                             <Calendar className="w-3 h-3" />
                             <span className="text-[9px] font-black uppercase tracking-widest">Fecha y Hora</span>
@@ -211,8 +211,8 @@ export default function AdminReports() {
                     </CardHeader>
 
                     <CardContent className="p-8">
-                      <div className="mb-8 p-6 bg-white/5 rounded-3xl border border-white/5 relative group">
-                        <div className="absolute top-4 right-4 text-[9px] font-black uppercase bg-white/10 px-2 py-1 rounded-md text-gray-400">Snapshot Original</div>
+                      <div className="mb-8 p-6 bg-white/5 dark:bg-white/5 rounded-3xl border border-white/5 relative group">
+                        <div className="absolute top-4 right-4 text-[9px] font-black uppercase bg-white/10 dark:bg-white/10 px-2 py-1 rounded-md text-gray-400">Snapshot Original</div>
                         
                         <div className="flex items-center gap-3 mb-6">
                           <div className="w-12 h-12 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-2xl flex items-center justify-center border border-white/10 font-black text-xl italic text-purple-400">
@@ -262,8 +262,8 @@ export default function AdminReports() {
                   </Card>
                 </motion.div>
               ) : (
-                <div className="h-[600px] flex flex-col items-center justify-center bg-white/5 rounded-3xl border border-dashed border-white/10 p-12 text-center">
-                  <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-6">
+                <div className="h-[600px] flex flex-col items-center justify-center bg-white/5 dark:bg-white/5 rounded-3xl border border-dashed border-white/10 p-12 text-center">
+                  <div className="w-16 h-16 bg-white/5 dark:bg-white/5 rounded-2xl flex items-center justify-center mb-6">
                     <FileText className="w-8 h-8 text-gray-600" />
                   </div>
                   <h3 className="text-xl font-black italic uppercase tracking-tighter mb-2">Selecciona un reporte</h3>

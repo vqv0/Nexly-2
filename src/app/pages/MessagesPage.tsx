@@ -8,8 +8,8 @@ import { ScrollArea } from '../components/ui/scroll-area';
 import { Search, Send, ArrowLeft, MessageSquare, Circle, MoreVertical } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth } from '../utils/auth';
-import { db } from '../utils/firebase';
-import { ref, onValue, push, set, get } from 'firebase/database';
+import { getUserProfile, UserProfile } from '../utils/mockData';
+import { generateBotResponse, calculateTypingTime } from '../utils/alfredoBot';
 
 interface Contact {
   id: string;
@@ -19,6 +19,7 @@ interface Contact {
   unread: number;
   online: boolean;
   avatar?: string;
+  isBot?: boolean;
 }
 
 interface Message {
@@ -27,112 +28,168 @@ interface Message {
   text: string;
   sender: 'me' | 'other';
   time: string;
-  timestamp: number;
 }
+
+const CONTACTS: Contact[] = [
+  {
+    id: 'alfredo@nexly.ai',
+    name: 'Alfredo',
+    lastMessage: '¡Hola! Estoy aquí para charlar.',
+    time: 'Siempre',
+    unread: 0,
+    online: true,
+    avatar: 'https://images.unsplash.com/photo-1531375369668-cb0bebb329bb?w=400',
+    isBot: true,
+  },
+  {
+    id: 'maria@nexly.com',
+    name: 'María García',
+    lastMessage: 'Hola! ¿Cómo estás?',
+    time: 'Hace 5 min',
+    unread: 2,
+    online: true,
+    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400',
+  },
+  {
+    id: 'carlos@nexly.com',
+    name: 'Carlos Rodríguez',
+    lastMessage: 'Nos vemos mañana',
+    time: 'Hace 1 hora',
+    unread: 0,
+    online: true,
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400',
+  },
+  {
+    id: 'ana@nexly.com',
+    name: 'Ana López',
+    lastMessage: 'Gracias por compartir!',
+    time: 'Hace 2 horas',
+    unread: 0,
+    online: false,
+  },
+  {
+    id: 'diego@nexly.com',
+    name: 'Diego Martínez',
+    lastMessage: 'Perfecto, confirmo',
+    time: 'Ayer',
+    unread: 1,
+    online: false,
+  },
+];
 
 export default function MessagesPage() {
   const { userId } = useParams();
   const navigate = useNavigate();
   const currentUser = auth.getCurrentUser();
-  const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [messageText, setMessageText] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
 
-  // Load registered users to show as contacts
-  useEffect(() => {
-    if (!currentUser) return;
+  const loadMessages = (contactId: string) => {
+    const allMessages: Message[] = JSON.parse(localStorage.getItem('nexly_messages') || '[]');
+    const filtered = allMessages.filter(m => 
+      (m.senderId === currentUser?.id && m.id.startsWith(contactId)) || // This is a bit hacky, let's improve
+      (m.senderId === contactId && m.id.endsWith(currentUser?.id || ''))
+    );
     
-    const usersRef = ref(db, 'users');
-    const unsubscribe = onValue(usersRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const loadedContacts: Contact[] = [];
-        Object.keys(data).forEach(key => {
-          if (key !== currentUser.id) {
-            const u = data[key];
-            loadedContacts.push({
-              id: key,
-              name: u.name,
-              lastMessage: 'Toca para chatear',
-              time: '',
-              unread: 0,
-              online: true,
-              avatar: u.avatar || '',
-            });
-          }
-        });
-        setContacts(loadedContacts);
+    // For now, let's keep it simple with a unique conversation key
+    const conversationKey = [currentUser?.id, contactId].sort().join('_');
+    const conversationMessages = allMessages.filter(m => m.id.includes(conversationKey));
+    
+    if (conversationMessages.length > 0) {
+      setMessages(conversationMessages);
+    } else {
+      // Mock initial messages if none found
+      const defaultIntro = contactId === 'alfredo@nexly.ai' 
+        ? '¡Hola! Soy Alfredo, la Inteligencia Artificial de Nexly. Háblame de lo que quieras, charlemos.'
+        : `¡Hola! Soy ${CONTACTS.find(c => c.id === contactId)?.name || 'tu contacto'}.`;
         
-        if (userId && !selectedContact) {
-          const contact = loadedContacts.find(c => c.id === userId);
-          if (contact) setSelectedContact(contact);
-        }
-      }
-    });
-    return () => unsubscribe();
-  }, [currentUser, userId]);
-
-  // Load and listen to messages for the selected contact
-  useEffect(() => {
-    if (!selectedContact || !currentUser) return;
-
-    const conversationKey = [currentUser.id, selectedContact.id].sort().join('_');
-    const messagesRef = ref(db, `chats/${conversationKey}/messages`);
-    
-    const unsubscribe = onValue(messagesRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const loadedMessages: Message[] = Object.keys(data).map(key => ({
-          id: key,
-          ...data[key],
-          sender: data[key].senderId === currentUser.id ? 'me' : 'other'
-        }));
-        loadedMessages.sort((a, b) => a.timestamp - b.timestamp);
-        setMessages(loadedMessages);
-      } else {
-        setMessages([]);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [selectedContact, currentUser]);
+      setMessages([
+        { id: `${conversationKey}_1`, senderId: contactId, text: defaultIntro, sender: 'other', time: '10:30' },
+      ]);
+    }
+  };
 
   const handleContactClick = (contact: Contact) => {
     setSelectedContact(contact);
+    loadMessages(contact.id);
   };
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = () => {
     if (!messageText.trim() || !selectedContact || !currentUser) return;
     
     const conversationKey = [currentUser.id, selectedContact.id].sort().join('_');
-    const messagesRef = ref(db, `chats/${conversationKey}/messages`);
-    const newMessageRef = push(messagesRef);
-    
-    await set(newMessageRef, {
+    const newMessage: Message = {
+      id: `${conversationKey}_${Date.now()}`,
       senderId: currentUser.id,
       text: messageText,
+      sender: 'me',
       time: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-      timestamp: Date.now()
-    });
+    };
     
+    const allMessages: Message[] = JSON.parse(localStorage.getItem('nexly_messages') || '[]');
+    const updatedMessages = [...allMessages, newMessage];
+    localStorage.setItem('nexly_messages', JSON.stringify(updatedMessages));
+    
+    setMessages(prev => [...prev, newMessage]);
     setMessageText('');
+    window.dispatchEvent(new CustomEvent('nexly-messages-update'));
+
+    // Bot Logic Handling (Alfredo)
+    if (selectedContact.isBot) {
+      setIsTyping(true);
+      generateBotResponse(currentUser.id, messageText).then(botText => {
+        const delay = calculateTypingTime(botText);
+        setTimeout(() => {
+          const botMessage: Message = {
+            id: `${conversationKey}_bot_${Date.now()}`,
+            senderId: selectedContact.id,
+            text: botText,
+            sender: 'other',
+            time: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+          };
+          const allMsgAfterHuman: Message[] = JSON.parse(localStorage.getItem('nexly_messages') || '[]');
+          localStorage.setItem('nexly_messages', JSON.stringify([...allMsgAfterHuman, botMessage]));
+          setMessages(prev => [...prev, botMessage]);
+          setIsTyping(false);
+          window.dispatchEvent(new CustomEvent('nexly-messages-update'));
+        }, delay);
+      });
+    }
   };
 
-  const filteredContacts = contacts.filter(c => 
+  const filteredContacts = CONTACTS.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   useEffect(() => {
     if (!currentUser) {
       navigate('/');
+      return;
     }
-  }, [currentUser, navigate]);
+
+    if (userId) {
+      const contact = CONTACTS.find(c => c.id === userId) || (getUserProfile(userId) ? {
+        id: userId,
+        name: getUserProfile(userId)!.name,
+        lastMessage: 'Inicia una conversación',
+        time: 'Recién',
+        unread: 0,
+        online: true,
+        avatar: getUserProfile(userId)!.avatar
+      } : null);
+      
+      if (contact) {
+        setSelectedContact(contact);
+        loadMessages(contact.id);
+      }
+    }
+  }, [userId, currentUser?.id]);
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white">
-      <Navbar />
+    <div className="min-h-screen bg-[#050505] dark:text-white">
 
       {/* Background Effect */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -148,7 +205,7 @@ export default function MessagesPage() {
             animate={{ opacity: 1, x: 0 }}
             className={`lg:col-span-4 h-full ${selectedContact ? 'hidden lg:block' : 'block'}`}
           >
-            <Card className="bg-white/5 border-white/10 backdrop-blur-3xl h-full flex flex-col overflow-hidden rounded-3xl">
+            <Card className="bg-white/5 dark:bg-white/5 border-white/10 backdrop-blur-3xl h-full flex flex-col overflow-hidden rounded-3xl">
               <div className="p-6 border-b border-white/5">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 flex items-center justify-center">
@@ -162,7 +219,7 @@ export default function MessagesPage() {
                     placeholder="BUSCAR CHATS..." 
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 bg-white/5 border-white/5 text-white placeholder:text-gray-600 rounded-xl focus:ring-blue-500/20 uppercase text-[10px] font-bold tracking-widest h-12" 
+                    className="pl-10 bg-white/5 dark:bg-white/5 border-white/5 text-white placeholder:text-gray-600 rounded-xl focus:ring-blue-500/20 uppercase text-[10px] font-bold tracking-widest h-12" 
                   />
                 </div>
               </div>
@@ -178,7 +235,7 @@ export default function MessagesPage() {
                       className={`group p-4 rounded-2xl cursor-pointer transition-all duration-300 border ${
                         selectedContact?.id === contact.id 
                           ? 'bg-blue-600/10 border-blue-500/30' 
-                          : 'bg-transparent border-transparent hover:bg-white/5 hover:border-white/5'
+                          : 'bg-transparent border-transparent hover:bg-white/5 dark:bg-white/5 hover:border-white/5'
                       }`}
                     >
                       <div className="flex gap-4">
@@ -206,9 +263,6 @@ export default function MessagesPage() {
                       </div>
                     </motion.div>
                   ))}
-                  {filteredContacts.length === 0 && (
-                    <div className="p-4 text-center text-gray-500 text-xs mt-4">No hay otros usuarios registrados aún.</div>
-                  )}
                 </div>
               </ScrollArea>
             </Card>
@@ -220,7 +274,7 @@ export default function MessagesPage() {
             animate={{ opacity: 1, x: 0 }}
             className={`lg:col-span-8 h-full ${selectedContact ? 'block' : 'hidden lg:block'}`}
           >
-            <Card className="bg-white/5 border-white/10 backdrop-blur-3xl h-full flex flex-col overflow-hidden rounded-3xl">
+            <Card className="bg-white/5 dark:bg-white/5 border-white/10 backdrop-blur-3xl h-full flex flex-col overflow-hidden rounded-3xl">
               {selectedContact ? (
                 <div className="h-full flex flex-col">
                   {/* Chat Header */}
@@ -228,15 +282,15 @@ export default function MessagesPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => setSelectedContact(null)}
-                      className="lg:hidden rounded-xl hover:bg-white/5 text-gray-400"
+                      onClick={() => navigate('/messages')}
+                      className="lg:hidden rounded-xl hover:bg-white/5 dark:bg-white/5 text-gray-400"
                     >
                       <ArrowLeft className="w-5 h-5" />
                     </Button>
                     <div className="flex items-center gap-3 flex-1">
                       <div className="relative">
                         {selectedContact.avatar ? (
-                          <img src={selectedContact.avatar} alt={selectedContact.name} className="w-10 h-10 rounded-full object-cover" />
+                          <img src={selectedContact.avatar} alt={selectedContact.name} className={`w-10 h-10 rounded-full object-cover ${selectedContact.isBot ? 'ring-2 ring-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)]' : ''}`} />
                         ) : (
                           <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center font-black italic uppercase">
                             {selectedContact.name.charAt(0)}
@@ -249,14 +303,23 @@ export default function MessagesPage() {
                       <div>
                         <p className="font-black text-white text-[11px] uppercase tracking-tight">{selectedContact.name}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <Circle className={`w-1.5 h-1.5 ${selectedContact.online ? 'fill-green-500 text-green-500' : 'fill-gray-600 text-gray-600'}`} />
-                          <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">
-                            {selectedContact.online ? 'En línea' : 'Desconectado'}
-                          </p>
+                          {selectedContact.isBot ? (
+                            <>
+                              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.8)] animate-pulse" />
+                              <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Bot IA Nexly</p>
+                            </>
+                          ) : (
+                            <>
+                              <Circle className={`w-1.5 h-1.5 ${selectedContact.online ? 'fill-green-500 text-green-500' : 'fill-gray-600 text-gray-600'}`} />
+                              <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">
+                                {selectedContact.online ? 'En línea' : 'Desconectado'}
+                              </p>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
-                    <Button variant="ghost" size="icon" className="rounded-xl hover:bg-white/5 text-gray-400">
+                    <Button variant="ghost" size="icon" className="rounded-xl hover:bg-white/5 dark:bg-white/5 text-gray-400">
                       <MoreVertical className="w-5 h-5" />
                     </Button>
                   </div>
@@ -276,7 +339,7 @@ export default function MessagesPage() {
                               className={`max-w-[80%] rounded-2xl px-5 py-3 shadow-xl ${
                                 message.sender === 'me'
                                   ? 'bg-blue-600 text-white rounded-tr-none'
-                                  : 'bg-white/5 border border-white/5 text-white rounded-tl-none'
+                                  : 'bg-white/5 dark:bg-white/5 border border-white/5 text-white rounded-tl-none'
                               }`}
                             >
                               <p className="text-sm font-medium leading-relaxed">{message.text}</p>
@@ -290,13 +353,28 @@ export default function MessagesPage() {
                             </div>
                           </motion.div>
                         ))}
+                        
+                        {/* Typing Indicator */}
+                        {isTyping && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            className="flex justify-start"
+                          >
+                            <div className="bg-white/5 dark:bg-white/5 border border-white/5 text-white rounded-2xl rounded-tl-none px-5 py-4 shadow-xl flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-blue-400/50 animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <span className="w-2 h-2 rounded-full bg-blue-400/50 animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <span className="w-2 h-2 rounded-full bg-blue-400/50 animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                          </motion.div>
+                        )}
                       </AnimatePresence>
                     </div>
                   </ScrollArea>
                   
                   {/* Message Input */}
                   <div className="p-6 border-t border-white/5">
-                    <div className="flex gap-3 bg-white/5 p-1 rounded-2xl border border-white/5">
+                    <div className="flex gap-3 bg-white/5 dark:bg-white/5 p-1 rounded-2xl border border-white/5">
                       <Input
                         placeholder="Escribe un mensaje..."
                         value={messageText}
@@ -316,7 +394,7 @@ export default function MessagesPage() {
                 </div>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-50">
-                  <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-6">
+                  <div className="w-20 h-20 bg-white/5 dark:bg-white/5 rounded-full flex items-center justify-center mb-6">
                     <MessageSquare className="w-10 h-10 text-blue-400" />
                   </div>
                   <h3 className="text-xl font-black uppercase italic tracking-widest mb-2">Tus Conversaciones</h3>

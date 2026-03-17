@@ -21,10 +21,10 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const result = await auth.login(email, password);
+    const result = auth.login(email, password);
     if (result.success) {
       toast.success('¡Bienvenido de nuevo!');
       navigate('/dashboard');
@@ -34,14 +34,14 @@ export default function Login() {
     setLoading(false);
   };
 
-  const handleRequestReset = async (e: React.FormEvent) => {
+  const handleRequestReset = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
       toast.error('Ingresa tu correo');
       return;
     }
     setLoading(true);
-    const result = await auth.requestPasswordReset(email);
+    const result = auth.requestPasswordReset(email);
     if (result.success) {
       toast.success('Código enviado a tu correo (mira la consola)');
       setStep('forgot_verify');
@@ -68,7 +68,7 @@ export default function Login() {
     setLoading(false);
   };
 
-  const handleResetPassword = async (e: React.FormEvent) => {
+  const handleResetPassword = (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword.length < 6) {
       toast.error('La contraseña debe tener al menos 6 caracteres');
@@ -111,7 +111,7 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all rounded-xl"
+                  className="bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all rounded-xl"
                 />
               </div>
             </motion.div>
@@ -141,7 +141,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all rounded-xl"
+                  className="bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all rounded-xl"
                 />
               </div>
             </motion.div>
@@ -183,7 +183,7 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all rounded-xl"
+                  className="bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all rounded-xl"
                 />
               </div>
             </div>
@@ -225,7 +225,7 @@ export default function Login() {
                   value={resetCode}
                   onChange={(e) => setResetCode(e.target.value.replace(/\D/g, ''))}
                   required
-                  className="bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-blue-500/50 focus:border-blue-500/50 text-center tracking-[10px] text-lg font-black rounded-xl"
+                  className="bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-blue-500/50 focus:border-blue-500/50 text-center tracking-[10px] text-lg font-black rounded-xl"
                 />
               </div>
             </div>
@@ -265,7 +265,7 @@ export default function Login() {
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     required
-                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all rounded-xl"
+                    className="bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all rounded-xl"
                   />
                 </div>
               </div>
@@ -280,7 +280,7 @@ export default function Login() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all rounded-xl"
+                    className="bg-white/5 dark:bg-white/5 border-white/10 text-white placeholder:text-gray-600 pl-10 h-12 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all rounded-xl"
                   />
                 </div>
               </div>
@@ -324,7 +324,7 @@ export default function Login() {
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         className="w-full max-w-md z-10"
       >
-        <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-2xl relative overflow-hidden">
+        <Card className="border-white/10 bg-white/5 dark:bg-white/5 backdrop-blur-2xl shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
           
           <CardHeader className="space-y-4 pt-10 pb-6 text-center">
